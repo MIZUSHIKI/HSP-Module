@@ -1,0 +1,39 @@
+;メインスクリプト内の #netinclude しか認識しません。
+#ifdef _debug
+//デバッグ時のみ #netinclude 処理を実行
+#include "hspinet.as" ;デバッグ時の2つのincludeは我慢してもらう。しか・・・
+#include "mod_regexp.as"
+#define ctype netinclude(%1) addition %1
+	exist "hsptmp" //addition の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く 
+	if strsize>=0 {
+		sdim tmp@_nichk:sdim res@_nichk:dim flg@_nichk ;初期化
+		notesel tmp@_nichk:noteload "hsptmp":noteunsel ;hsptmp読み込み
+		matches tmp@_nichk, tmp@_nichk, "#netinclude\\s*\\(\\s*\"(.+?)\"\\s*\\)" ;#netinclude部分を読み取り
+		repeat stat
+			exist tmp@_nichk(cnt,1) ;ファイルがダウンロード済みなら何もしない
+			if strsize=-1{
+				if flg@_nichk=0:netinit ;hspinetの初期化
+				flg@_nichk=1 ;1つでも未ダウンロードがないかのフラグ
+				cdir=dir_cur ;カレントディレクトリ保存
+				split tmp@_nichk(cnt,1),"/",res@_nichk ;URL(ディレクトリ)構造分解
+				if stat>0 {
+					repeat stat-1 ;深い階層を作っていく
+						dirlist a,res@_nichk(cnt),5 ;フォルダ存在確認
+						if stat=0 :mkdir res@_nichk(cnt) ;フォルダが存在しないなら作る
+						chdir res@_nichk(cnt) ;カレントディレクトリを1階層深くに移動
+					loop
+				}
+				neturl "https://raw.githubusercontent.com/"+getpath(tmp@_nichk(cnt,1),32) ;GitHubから
+				netload getpath(tmp@_nichk(cnt,1),8) ;HSPモジュールをダウンロード
+				chdir cdir ;元のカレントディレクトリに戻す
+			}
+		loop
+		if flg@_nichk { ;1つでもダウンロードしてたらもう一度実行してもらう
+			dialog "もう一度、実行してください" :end
+		}
+		sdim res@_nichk,0:sdim tmp@_nichk,0 ;大きめ(?)の変数を初期化
+	}
+#else
+//実行ファイル作成時はただの #include になる
+#define ctype netinclude(%1) include %1
+#endif
