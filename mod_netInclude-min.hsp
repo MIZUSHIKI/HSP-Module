@@ -1,8 +1,0 @@
-#ifdef _debug
-#include "hspinet.as"
-#include "mod_regexp.as"
-#define netinclude(%1) addition %1
-exist "hsptmp":if strsize>=0{sdim tmp@_nichk:sdim res@_nichk:dim flg@_nichk:notesel tmp@_nichk:noteload "hsptmp":noteunsel:matches tmp@_nichk,tmp@_nichk,"#netinclude\\s*\"(.+?)\"":repeat stat:exist tmp@_nichk(cnt,1):if strsize=-1{if flg@_nichk=0{netinit}:flg@_nichk=1:cdir@_nichk=dir_cur:split tmp@_nichk(cnt,1),"/",res@_nichk:if stat>0{sdim a@_nichk:repeat stat-1:dirlist a@_nichk,res@_nichk(cnt),5:if stat=0{mkdir res@_nichk(cnt)}:chdir res@_nichk(cnt):loop}:neturl "https://raw.githubusercontent.com/"+getpath(tmp@_nichk(cnt,1),32):netload getpath(tmp@_nichk(cnt,1),8):chdir cdir@_nichk}:loop:if flg@_nichk{dialog "‚à‚¤ˆê“xAÀs‚µ‚Ä‚­‚¾‚³‚¢":end}:sdim res@_nichk,0:sdim tmp@_nichk,0}
-#else
-#define netinclude(%1) include %1
-#endif
