@@ -1,0 +1,8 @@
+#ifdef _debug
+#include "hspinet.as"
+#include "mod_regexp.as"
+#define netinclude(%1) addition %1*
+exist "hsptmp":if strsize>=0{t@__ni="":n@__ni=0:notesel t@__ni:noteload "hsptmp":noteunsel:matches t@__ni,t@__ni,"#netinclude\\s*\"(.+?)\"":repeat stat:exist t@__ni(cnt,1):t@__ni(cnt,0)=""+(strsize=-1):n@__ni+=(strsize=-1):loop:if n@__ni>0{a@__ni=""+dir_cur+"\n\nに\n\n":foreach t@__ni:if t@__ni(cnt,0)="0"{continue}:a@__ni+="・"+t@__ni(cnt,1)+"\n":loop:dialog a@__ni+"\nをダウンロードしても良いですか？",2,"#netinclude\ ":if stat=6{netinit:r@__ni="":foreach t@__ni:if t@__ni(cnt,0)="0"{continue}:c@__ni=dir_cur:split t@__ni(cnt,1),"/",r@__ni:if stat>0{repeat stat-1:dirlist a@__ni,r@__ni(cnt),5:if stat=0{mkdir r@__ni(cnt)}:chdir r@__ni(cnt):loop}:neturl "https://raw.githubusercontent.com/"+getpath(t@__ni(cnt,1),32):netload getpath(t@__ni(cnt,1),8):chdir c@__ni:loop}}:if c@__ni!=""{dialog "もう一度、実行してください",,"#netinclude - ダウンロード完了":end}:sdim t@__ni,0}
+#else
+#define netinclude(%1) include %1
+#endif
