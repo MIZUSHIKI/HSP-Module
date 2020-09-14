@@ -1,0 +1,1757 @@
+// 末尾に @ReadMe.txt, mod_TimerRepeat.hs 付き
+
+//
+//	mod_uniq.hsp - ver.1.0											by MIZUSHIKI
+//
+#ifndef uniq_start
+
+#define global uniq_start %tunique %i0
+#define global ctype uniq(%1) %tunique %1@%p
+#define global uniq_end %tunique %o0
+
+#endif
+
+//
+//	mod_TimerRepeat.hsp - ver.2.1									by MIZUSHIKI
+//
+#ifndef timer_repeat
+
+#define global timer_repeat(%1=10,%2=-1,%3=0,%4=0) %t__timer if pChk@modTimerRepeat("%1"){dup _arA@modTimerRepeat,%1}else{vaA@modTimerRepeat=%1:dup _arA@modTimerRepeat,vaA@modTimerRepeat}:_setTimerLabel@modTimerRepeat %2,%3,*%i,%4 :goto *%i :*%p1 :uniq_start:if _dupdim_@modTimerRepeat>-2{ if _dupdim_@modTimerRepeat>=0{dim uniq(timer_intervals),_dupdim_@modTimerRepeat}: dup _ari@modTimerRepeat,uniq(timer_intervals):return} :dup timer_intervals@modTimerRepeat,uniq(timer_intervals):if(_TimerRepeat_deinit_@modTimerRepeat<=1) {
+#define global timer_init %t__timer *%o : if(_TimerRepeat_init_@modTimerRepeat>=2) {
+#define global _init_end %t__timer if(_TimerRepeat_init_@modTimerRepeat==3) {goto *%i} }
+#define global timer_deinit } : if(_TimerRepeat_deinit_@modTimerRepeat>=1) {
+#define global _deinit_end } : if(_TimerRepeat_deinit_@modTimerRepeat<=1) {
+#define global timer_loop %t__timer } :uniq_end :return :*%o :_get_index@modTimerRepeat *%o
+
+#define global timer_break %t__timer _killTimerLabel_Label@modTimerRepeat *%p1 :return
+#define global timer_continue(%1=-1,%2=0) %t__timer _continueTimerCount_Label@modTimerRepeat *%p1,%1 :_continueTimerTimesReset_Label@modTimerRepeat *%p1,%2 :return
+#define global timer_cnt %t__timer _getTimerCnt_Label@modTimerRepeat(*%p1)
+
+#define global timer_setTimerSpeed(%1=__timer__id__@modTimerRepeat,%2=10) __timer__temp__@modTimerRepeat=%1 : if pChk@modTimerRepeat("%2"){dup _arA@modTimerRepeat,%2}else{vaA@modTimerRepeat=%2:dup _arA@modTimerRepeat,vaA@modTimerRepeat}: _setTimerSpeed@modTimerRepeat __timer__temp__@modTimerRepeat
+#define global timer_kill(%1=__timer__id__@modTimerRepeat) __timer__temp__@modTimerRepeat=%1 : _killTimerLabel@modTimerRepeat __timer__temp__@modTimerRepeat
+#define global ctype timer_getTimerTime(%1=__timer__id__@modTimerRepeat) _get_timertime@modTimerRepeat(%1)
+
+#define global ctype timer_getTime timeGetTime@modTimerRepeat()
+#define global timer_intervals timer_intervals@modTimerRepeat
+
+
+#module modTimerRepeat
+#deffunc _init_@modTimerRepeat
+	//デバッガに怒られないよう一応初期化
+	labels=0
+	ing=0
+	usingengine=0
+	mae_nft=0
+	st=0
+	_ara=0
+	_arb=0
+	_dupdim_=-2
+	_ari=0
+	return
+#defcfunc timeGetTime@modTimerRepeat
+#ifndef _HSP3DISH
+	#uselib "winmm.dll"
+	#cfunc _timeGetTime@modTimerRepeat "timeGetTime"
+	return _timeGetTime@modTimerRepeat()
+#else
+	getreq time24, SYSREQ_TIMER
+	return time24
+#endif
+
+
+#deffunc _setTimerLabel@modTimerRepeat int num, int fcnt, label _label, int type
+	;_arA
+	label = _label
+	if vartype(labels) != 1 {
+		// 初期化処理
+		ldim labels,1
+	}
+	//既に存在してing中だったら、typeに合わせて無効か終了か終了＋再リピートか
+	index = 0
+	repeat length.labels-1, 1
+		if lpeek(labels.cnt,0) == lpeek(label,0) :index=cnt :break
+	loop
+	if index!=0 {
+		if ing(index) == 1 {
+			switch type
+				case 1 ://終了のみ
+					timer_kill label
+					return
+					swbreak
+				case 2 ://終了＋再リピート
+					timer_kill label
+					swbreak
+				default ://無効
+					return
+			swend
+		}
+	}else {
+		index = length.labels
+	}
+
+	nums(index) = num : if nums(index)<0 :nums(index)=-1
+	fcnts(index) = fcnt
+	labels(index) = label
+	cnts(index) = fcnt
+	;intervals(index) = time
+	SetINTERVAL@modTimerRepeat index, _arA
+	times(index) = timeGetTime()
+	times_lastFire(index) = times(index)
+	ing(index) = 1
+	engine(index) = usingEngine
+
+	_TimerRepeat_init_=3
+	return
+#defcfunc GetINTERVAL@modTimerRepeat int i
+	_dupdim_=-1
+	gosub labels(i)
+	_dupdim_=-2
+	return _ari(cnts(i)\(length._ari))
+#deffunc SetINTERVAL@modTimerRepeat int i, array ar
+	_dupdim_=length(ar)
+	gosub labels(i)
+	_dupdim_=-2
+	foreach ar
+		_ari(cnt) = ar(cnt)
+	loop
+	return
+
+#define global timer_fire(%1=1) _timer_fire %1
+#deffunc _timer_fire int type
+	
+	nowTime = -1; = timeGetTime()
+	foreach ing
+		if ing(cnt) == 0 :continue
+		if engine(cnt) != type :continue 
+		if nowTime==-1 : nowTime = timeGetTime()
+		if nowTime - times_lastFire(cnt) >= GetINTERVAL@modTimerRepeat(cnt) :__timer__id__=cnt : times_lastFire(cnt)=nowTime : gosub *__timer__WaitLoop__@modTimerRepeat
+	loop
+	return
+	
+*__timer__WaitLoop__@modTimerRepeat
+	_TimerRepeat_deinit_=0
+	if nums(__timer__id__) != -1 {
+		if cnts(__timer__id__)-fcnts(__timer__id__) >= nums(__timer__id__)-1 {
+			_TimerRepeat_deinit_=1
+			if cnts(__timer__id__)-fcnts(__timer__id__) >= nums(__timer__id__) :return //もし最後超えても次が来たとき止める。
+		}
+	}
+	if cnts(__timer__id__) == fcnts(__timer__id__) :_TimerRepeat_init_=1 :else :_TimerRepeat_init_=0
+	_TimerRepeat_cnt_ = cnts(__timer__id__) : cnts(__timer__id__)++
+	gosub labels(__timer__id__)
+	if _TimerRepeat_deinit_=1 :ing(__timer__id__)=0
+	return
+	
+#deffunc _killTimerLabel_Label@modTimerRepeat label _label
+	label = _label
+	_killTimerLabel@modTimerRepeat label
+	return
+#deffunc _killTimerLabel@modTimerRepeat var v
+	if vartype(v)==1{
+		index = 0
+		repeat length.labels-1, 1
+			if lpeek(labels.cnt,0) == lpeek(v,0) :index=cnt :break
+		loop
+		if index=0 :return
+	}else {
+		index = v
+		if index = 0 :return
+	}
+	if length(labels)<=index :return
+	
+	if ing(index) == 0 :return
+	__timer__id__=index
+	_TimerRepeat_deinit_=2
+	_TimerRepeat_cnt_ = cnts(index)
+	gosub labels(index)
+	ing(index) = 0
+	return
+#deffunc _AllKillTimerLabel onexit
+	foreach ing
+		ing(index) = 0
+	loop
+	return
+
+#deffunc timer_setTimerEngine int type
+	usingEngine = (type == 1)
+	return
+
+#defcfunc _getNextFireTime@modTimerRepeat int type
+	if type=1 : return mae_NFT ;
+	_NFT = 2147483647
+	foreach ing
+		if ing(cnt) == 0 :continue
+		if _NFT > times_lastFire(cnt)+GetINTERVAL@modTimerRepeat(cnt) : _NFT = times_lastFire(cnt)+GetINTERVAL@modTimerRepeat(cnt)
+	loop
+	if _NFT == 2147483647 : return -1
+	mae_NFT = _NFT - timeGetTime() 
+	if mae_NFT<0 : mae_NFT=0
+	return mae_NFT
+	
+#deffunc _setTimerSpeed@modTimerRepeat var v;, int time
+	if vartype(v)==1{
+		index = 0
+		repeat length.labels-1, 1
+			if lpeek(labels.cnt,0) == lpeek(v,0) :index=cnt :break
+		loop
+		if index=0 :return
+	}else {
+		index = v
+		if index = 0 :return
+	}
+	if length(labels)<=index :return
+	SetINTERVAL@modTimerRepeat index, _arA
+	;intervals(index) = time
+	return
+
+#deffunc _continueTimerCount_Label@modTimerRepeat label _label, int count
+	_continueTimerCount@modTimerRepeat _getc_index@modTimerRepeat(_label), count
+	return
+#deffunc _continueTimerCount@modTimerRepeat int i, int count
+	if count == -1 {
+		cnts(i) = _TimerRepeat_cnt_+1
+	}else {
+		cnts(i) = count
+	}
+	return
+#deffunc _continueTimerTimesReset_Label@modTimerRepeat label _label, int bool
+	_continueTimerTimesReset@modTimerRepeat _getc_index@modTimerRepeat(_label), bool
+	return
+#deffunc _continueTimerTimesReset@modTimerRepeat int i, int bool
+	if bool=0 :return
+	times(i) = timeGetTime()
+	return
+
+#defcfunc _getTimerCnt_Label@modTimerRepeat label _label
+	return cnts( _getc_index@modTimerRepeat(_label) ) - 1
+	
+#deffunc _get_index@modTimerRepeat label _label
+	label = _label
+	index = 0
+	repeat length.labels-1, 1
+		if lpeek(labels.cnt,0) == lpeek(label,0) :index=cnt :break
+	loop
+	if index=0 :return
+	mref st,64
+	st = index
+	return
+	
+#defcfunc _getc_index@modTimerRepeat label _label
+	label = _label
+	index = 0
+	repeat length.labels-1, 1
+		if lpeek(labels.cnt,0) == lpeek(label,0) :index=cnt :break
+	loop
+	if index=0 :return 0
+	return index
+	
+#defcfunc _get_timertime@modTimerRepeat int _index
+	if _index <= 0 :return -1
+	if length(labels)<=_index :return -1
+	
+	if ing(_index) = 0 :return -1
+	return (timeGetTime@modTimerRepeat() - times@modTimerRepeat(_index))
+	
+#define global timer_ease(%1,%2,%3,%4,%5) if pChk@modTimerRepeat("%2"){dup _arA@modTimerRepeat,%2}else{vaA@modTimerRepeat=%2:dup _arA@modTimerRepeat,vaA@modTimerRepeat}:if pChk@modTimerRepeat("%3"){dup _arB@modTimerRepeat,%3}else{vaB@modTimerRepeat=%3:dup _arB@modTimerRepeat,vaB@modTimerRepeat} : _TimerRepeat_easing@modTimerRepeat %1,timeGetTime@modTimerRepeat(),times@modTimerRepeat(__timer__id__@modTimerRepeat),%4,%5
+#define global geteaseT(%1,%2,%3,%4,%5,%6,%7)  if pChk@modTimerRepeat("%3"){dup _arA@modTimerRepeat,%3}else{vaA@modTimerRepeat=%3:dup _arA@modTimerRepeat,vaA@modTimerRepeat}:if pChk@modTimerRepeat("%5"){dup _arB@modTimerRepeat,%5}else{vaB@modTimerRepeat=%5:dup _arB@modTimerRepeat,vaB@modTimerRepeat} : _TimerRepeat_easing@modTimerRepeat %1,%2,%4,%6,%7
+#define global geteaseWithTime(%1,%2,%3,%4,%5,%6,%7) geteaseT %1,%2,%3,%4,%5,%6,%7
+//関数に渡されたパラメータが変数か確認する
+#defcfunc pChk@modTimerRepeat str _chkStr
+	chkStr = _chkStr
+	chkStr = strtrim(chkStr,3)
+	// uniq()だけ殻割する特殊仕様
+	if lpeek(chkStr,0)==1902734965 { ;uniq
+		if wpeek(chkStr,3)==10353 { ;q(
+			if peek(chkStr,strlen(chkStr)-1)=')' {;uniq(～)
+				chkStr = strmid(chkStr,5,strlen(chkStr)-6)
+				chkStr = strtrim(chkStr,3)
+			}
+		}
+	}
+	flg = 0
+	repeat strlen(chkStr)
+		if 'a'<=peek(chkStr,cnt)&&peek(chkStr,cnt)<='z' :flg=1 :continue
+		if 'A'<=peek(chkStr,cnt)&&peek(chkStr,cnt)<='Z' :flg=1 :continue
+		if peek(chkStr,cnt)=='_' :flg=1 :continue
+		if peek(chkStr,cnt)=='@' :flg=1 :continue
+		if flg=0 : break
+		if '0'<=peek(chkStr,cnt)&&peek(chkStr,cnt)<='9' :continue
+		flg = 0 : break
+	loop
+	return flg
+	
+#deffunc _TimerRepeat_easing@modTimerRepeat array arZ, int _miriSecZ, int _miriSecA, int type, int _miriSec
+	miriSec  = _miriSec  :if miriSec  <= 0 :miriSec  = 1
+	miriSecA = _miriSecA :if miriSecA <  0 :miriSecA = 0
+	miriSecZ = _miriSecZ :if miriSecZ < miriSecA :miriSecZ = miriSecA
+	if length(_arA) != length(_arB) : return -1.0
+	dimtype arZ, vartype(_arB), length(_arB)
+	repeat length(_arB)
+		setease _arA(cnt), _arB(cnt), type
+		if vartype(_arB) == 3 {
+			arZ(cnt) = geteasef( miriSecZ-miriSecA, miriSec )
+		}else {
+			arZ(cnt) = getease( miriSecZ-miriSecA, miriSec )
+		}
+	loop
+	per = 1.0*( miriSecZ-miriSecA ) / miriSec
+	if ( per > 1.0 ) || ( per < 0.0 ) : per = 1.0
+	return per
+
+
+//
+//	mod_waiton.hsp(+タイマーループ割り込み) - ver.1.2.2					by MIZUSHIKI
+//
+#define global timer_waiton(%1=100) :\
+	_waitTime_@modTimerRepeat = timeGetTime@modTimerRepeat() :\
+	_whilecount_@modTimerRepeat=0:\
+	while 1 :\
+		_nokoriTime_@modTimerRepeat=%1-(timeGetTime@modTimerRepeat() - _waitTime_@modTimerRepeat)/10 :\
+		_nokoriTime_2@modTimerRepeat = _nokoriTime_@modTimerRepeat :\
+		if(_getNextFireTime@modTimerRepeat(0)!=-1 && _nokoriTime_2@modTimerRepeat>_getNextFireTime@modTimerRepeat(1)/10){ _nokoriTime_2@modTimerRepeat=_getNextFireTime@modTimerRepeat(1)/10 } :\
+		if(_whilecount_@modTimerRepeat==0||_nokoriTime_2@modTimerRepeat>1){if(_nokoriTime_2@modTimerRepeat<=0){_nokoriTime_2@modTimerRepeat=1}:wait@hsp _nokoriTime_2@modTimerRepeat} :\
+		timer_fire 0 :\
+		if(_nokoriTime_@modTimerRepeat<=0){ _break } :\
+		_whilecount_@modTimerRepeat++:\
+	wend :\
+	_awaitTime_@modTimerRepeat=timeGetTime@modTimerRepeat()
+
+#define global timer_awaiton(%1=0) :\
+	if(_awaitTime_@modTimerRepeat=0){ _awaitTime_@modTimerRepeat = timeGetTime@modTimerRepeat() } :\
+	_whilecount_@modTimerRepeat=0:\
+	while 1 :\
+		_nokoriTime_@modTimerRepeat=%1-(timeGetTime@modTimerRepeat() - _awaitTime_@modTimerRepeat) :\
+		_nokoriTime_2@modTimerRepeat = _nokoriTime_@modTimerRepeat :\
+		if(_getNextFireTime@modTimerRepeat(0)!=-1 && _nokoriTime_2@modTimerRepeat>_getNextFireTime@modTimerRepeat(1)){ _nokoriTime_2@modTimerRepeat=_getNextFireTime@modTimerRepeat(1) } :\
+		if(_whilecount_@modTimerRepeat==0||_nokoriTime_2@modTimerRepeat>1){if(_nokoriTime_2@modTimerRepeat<=0){_nokoriTime_2@modTimerRepeat=1}:await@hsp _nokoriTime_2@modTimerRepeat} :\
+		timer_fire 0 :\
+		if(_nokoriTime_@modTimerRepeat<=0){ _break } :\
+		_whilecount_@modTimerRepeat++:\
+	wend :\
+	_awaitTime_@modTimerRepeat=timeGetTime@modTimerRepeat()
+
+#define global timer_stop(%1=dummy) :\
+	_awaitTime_@modTimerRepeat=0 :\
+	_stop_word_@modTimerRepeat="%1":\
+	_s_w_nine_@modTimerRepeat=9*(strmid(_stop_word_@modTimerRepeat,-1,4)=="wait"):\
+	_whilecount_@modTimerRepeat=0:\
+	while 1 :\
+		_nokoriTime_2@modTimerRepeat = 214748364 :\
+		if(_getNextFireTime@modTimerRepeat(0)!=-1){ _nokoriTime_2@modTimerRepeat=_getNextFireTime@modTimerRepeat(1) } :\
+		if(_whilecount_@modTimerRepeat==0||_nokoriTime_2@modTimerRepeat>(1+_s_w_nine_@modTimerRepeat)){if(_s_w_nine_@modTimerRepeat==0){if(_nokoriTime_2@modTimerRepeat<=0){_nokoriTime_2@modTimerRepeat=1}:await@hsp _nokoriTime_2@modTimerRepeat}else{if(_nokoriTime_2@modTimerRepeat<=9){_nokoriTime_2@modTimerRepeat=10}:wait@hsp _nokoriTime_2@modTimerRepeat/10}} :\
+		timer_fire 0 :\
+	wend
+	
+	#undef wait
+	#define global wait timer_waiton
+	#undef await
+	#define global await timer_awaiton
+	#undef stop
+	#define global stop timer_stop
+
+#global
+_init_@modTimerRepeat
+#endif
+
+/*
+
+// @ReadMe.txt //
+
+━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+モジュール名│mod_TimerRepeat.hsp
+  バージョン│2.1
+        作者│MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
+            │                                  Copyright(C) 2019-2020 MIZUSHIKI
+━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+■ 概要 ■
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+一定間隔で実行するタイマー機能をrepeat～loopのような記述で簡単に利用することが出
+来るようになります。
+
+また、timer_ease命令を合わせて使うことで、時間変化によるイージング値を簡単に取得
+出来るようになります。
+
+
+　□ モジュール内記述：mod_uniq.hsp - ver.1.0 □
+　￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+　指定した区間において、名前の被らないユニークな変数を定義します。
+
+
+　□ モジュール内記述：mod_waiton.hsp(+タイマーループ割り込み) - ver.1.2.2 □
+　￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+　中断中にタイマーループの指定時間が来たら適宜実行されるようになっています。
+
+　また、oncmd等の割り込みジャンプにも対応しています。
+
+　　通常のwaitでは oncmd, onkey, onclick の割り込みジャンプが発生すると、return
+　　で戻ってたときに待ち時間が残っていても次の行から処理が始まってしまいます。
+　　
+　　timer_waitonは、残り時間があった場合は残りのぶん再waitします。
+　　
+　　a2d+AlphaLayer.hsp でSetCallbackAlphaLayerを使いメッセージ割り込みを指定した
+　　場合、マウスの通過でも wait/await の待機時間が無効化されてしまうため利用を推
+　　奨します。
+　　
+　mod_TimerRepeat.hsp をインクルードした時点で、通常のwait命令がtimer_waitonの機
+　能で上書きされます。（waitと書いてもtimer_waitonの処理が実行されます。）
+
+
+■ 命令 / 関数 ■
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+timer_repeat
+　タイマーループの始まりの場所を示す
+timer_loop
+　タイマーループの始まりに戻る
+timer_kill
+　タイマーループを終了させる
+timer_init
+　タイマーループ初期化処理（_init_end まで）
+timer_deinit
+　タイマーループ後始末処理
+timer_break
+　タイマーループから抜けだしてタイマーも終了させる
+timer_continue
+　タイマーループをやり直す
+timer_cnt
+　タイマーループのカウンター
+timer_getTimerTime
+　実行中のタイマーループの経過時間を取得
+timer_setTimerSpeed
+　タイマーループの繰り返し間隔を変更
+timer_getTime
+　ミリ秒タイマー
+timer_ease
+　タイマーループ内で時間変化によるイージング値の取得
+geteaseT
+　時間変化によるイージング値を取得
+
+◆ mod_uniq.hsp - ver.1.0 ◆
+uniq_start
+　uniq()のスコープ開始
+uniq
+　ユニークな変数を定義
+uniq_end
+　uniq()のスコープ終了
+
+◆ mod_waiton.hsp(+タイマーループ割り込み) - ver.1.2.2 ◆
+timer_waiton
+　実行を一定時間中断する(タイマーループ割り込み+oncmd等の割り込みジャンプに対応)
+timer_awaiton
+　一定の時間で待つ(タイマーループ割り込み+oncmd等の割り込みジャンプに対応)
+timer_stop
+　プログラム中断(タイマーループ割り込みに対応)
+
+
+■ 履歴
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+ version 2.1   2020/ 9/10
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+　・timer_repeatでp1(繰り返し間隔)を数値だけでなく配列も指定できるように変更。
+　　　(a2d+AlphaLayerのGIFアニメ再生の簡易化のため)
+　・timer_setTimerSpeedも数値だけでなく配列も指定できるように変更。
+　・timer_getTimeの仕様変更。(gettime標準命令を諦めwinmm.dll-timeGetTimeを利用)
+　・未初期化変数の初期化処理を入れるよう修正。
+　(mod_waiton.hsp Ver.1.2.2)
+　・waiton系命令で必ず1(wait 1/await 1)以上待つように変更。
+
+ version 2.0   2020/ 1/ 3
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+　・HSP3Dishでも利用できるように変更。
+　　　・WM_TIMER使用からwait書き換え式に変更。(精度も良くなった)
+　　　・timer_easeで渡されたものが変数かどうかを自力読み取りするようにした。
+　　　・timer_getTimeの数値をgettime、getreqから取得するようにした。
+　・timer_setTimerEngine、timer_fireでタイマー実行のタイミングをコントロールでき
+　　るようにした。
+　・mod_uniq.hsp(ver.1.0)、mod_waiton.hsp+タイマーループ割り込み(ver.1.2.1)をモ
+　　ジュール内に記述するようにした。
+　・[名称変更]geteaseWithTime→geteaseT
+　・[バグfix]timer_continueの第1パラが必ず0になってしまうバグを修正。
+
+ version 1.1   2019/11/ 9
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+　・mod_waiton.hspを自動でインクルードするように修正。
+　　(一緒に使う必要なくなったと思ったらそんなことなかった。)
+  ・timer_setTimerSpeed命令の変数指定ミスを修正。
+
+ version 1.0   2019/10/31
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+  ・リリース。
+
+
+┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳
+┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻
+
+// mod_TimerRepeat.hs //
+
+;
+;	HSP help manager用 HELPソースファイル
+;	(先頭が「;」の行はコメントとして処理されます)
+;
+
+%type
+拡張命令
+%ver
+2.1
+%note
+mod_TimerRepeat.hspをインクルードすること。
+%dll
+mod_TimerRepeat
+%date
+2020/9/10
+%author
+MIZUSHIKI
+%url
+http://suwa.pupu.jp/
+%port
+Win
+
+
+
+%index
+timer_repeat
+タイマーループの始まりの場所を示す
+
+%prm
+p1,p2,p3,p4
+p1=(10) : ミリ秒（繰り返しの間隔）の値もしくは変数（1次元配列）
+p2=1～(-1) : ループ回数
+p3=0～(0)  : 拡張システム変数timer_cntのスタート値
+p4=0～2(0)  : 既にタイマーループ中だったときの処理を決定
+
+%inst
+p1で指定したミリ秒の間隔で、timer_repeat～timer_loopの間をくり返し実行します。
+スクリプト処理としては、timer_repeat～timer_loop間は一度無視されてtimer_loop以降がすぐに実行されて行きます。
+timer_repeat～timer_loop間は後にタイマーが発動されてから処理されることになります。
+
+通常のrepeatとは違い、間にwait,await命令を書いてはいけません。
+
+timer_repeat命令のパラメータp2でくり返しの回数を指定することができます。回数の指定を省略、またはマイナス値を指定すると無限ループになります。
+
+ループ回数を調べたい時や、カウンターを利用したい時のためにシステム変数timer_cntを参照することができます。timer_cntは通常、0からスタートして、 timer_loop命令でループするたびに1づつ増えていきます。
+timer_repeat命令のp3でカウンタがスタートする数値を変更することも可能です。
+
+ループの内部で、強制的にタイマーを終了させる場合には、 timer_break命令を使用してください。また、ループをやり直すためのtimer_continue命令も用意されています。
+
+同一のタイマーループが既に実行中の場合、重複されないようになっています。
+この処置は p4 で変更できます。
+html{
+<u><b>p4の値</b></u>
+<ul>
+<li>省略または0 ： 何も処理しない。</li>
+<li>1 ： タイマーループを終了させる。</li>
+<li>2 ： タイマーループを一度終了させた後、もう一度タイマーループを起動させる。</li>
+}html
+
+タイマーループで使う変数の初期化処理用のtimer_initと、ループ回数の最後だけ（またはtimer_killしたときに）実行するtimer_deinitも用意されています。
+
+また、timer_repeat～timer_loop間はuniq_start,uniq_endを使用しなくてもuniq()変数が使用できます。
+
+html{
+<u><b>タイマーループ終了のさせ方</b></u>
+<ul>
+<li>timer_loop記述後、statにタイマーループIDが代入されています。<br>
+timer_kill タイマーループID<br>
+でタイマーを終了させることが出来ます。</li>
+<li>
+timer_repeat～timer_loop間では<a href="timer_break.htm">timer_break</a>でタイマーを終了させることが出来ます。</li>
+</ul>
+}html
+
+html{
+<u><b>タイマー実行のオート/マニュアルについて</b></u>
+}html
+基本的にtimer_repeatは何もしなくても指定した時間ごとに自動で実行されます。(オート)
+
+ただし、事前にtimer_setTimerEngineでマニュアル指定することで実行タイミングをコントロールすることができます。
+これによって、await 16(60FPS)等でループしていた場合に、隙間で勝手に実行されるのを防ぐことができます。
+
+タイマーの実行はループの中にtimer_fireを組み込んでください。
+指定時間になったもの(超えたもの)があるか確認して必要なものだけ実行します。
+
+タイマーの実行タイミング(timer_setTimerEngine)はtimer_repeat1つ1つに対して指定することができます。
+
+html{
+<u><b>p1に配列を指定した場合</b></u>
+}html
+timer_cntの値と連動した繰り返し間隔の変更ができます。
+配列の終わりまで行くとまた最初から繰り返します。
+
+例) 配列の要素が3 の場合
+cnt : 0 → 1 → 2 → 3 → 4 → 5 → …
+配列: 0 → 1 → 2 → 0 → 1 → 2 → …
+
+アニメーションで各フレームの待機時間が異なるようなときにお使いください。
+
+ループの内部でtimer_intervals変数を使うと、timer_repeat の p1配列 を参照できます。
+
+%sample
+#include "mod_TimerRepeat.hsp"
+
+	t = timer_getTime()
+
+	// TimerRepeat A （間隔：100ms）
+	timer_repeat 100, 20
+		timer_init:
+			pos 0,0 : mes "TimerRepeat A" : mes "開始:"+(timer_getTime()-t)+"ms(間隔：100ms)"
+			uniq(cy) = ginfo_cy : uniq(t)=timer_getTime()
+			_init_end
+		pos 0, uniq(cy) : mes strf("%2d:%4d(%d)",timer_cnt,timer_getTime()-t,timer_getTime()-uniq(t)) : uniq(cy)=ginfo_cy
+		uniq(t)=timer_getTime()
+		timer_deinit:
+			pos 0,uniq(cy) : mes "終了:"+(timer_getTime()-t)+"ms"
+	timer_loop
+
+	//
+	// 1秒 待機
+	//
+	wait 100
+	color 255,0,0
+	pos 110,0 : mes "\n\n\n   →\nwait 100"
+	color
+	
+	// TimerRepeat B （間隔：50ms）
+	timer_repeat 50, 20
+		timer_init:
+			pos 200,0 : mes "TimerRepeat B" : mes "開始:"+(timer_getTime()-t)+"ms(間隔：50ms)"
+			uniq(cy) = ginfo_cy : uniq(t)=timer_getTime()
+			_init_end
+		pos 200, uniq(cy) : mes strf("%2d:%4d(%d)",timer_cnt,timer_getTime()-t,timer_getTime()-uniq(t)) : uniq(cy)=ginfo_cy
+		uniq(t)=timer_getTime()
+		timer_deinit:
+			pos 200,uniq(cy) : mes "終了:"+(timer_getTime()-t)+"ms"
+	timer_loop
+
+	// 通常のRepeat C （間隔：20ms）
+	pos 400, 0 : mes "Repeat" : mes "開始:"+(timer_getTime()-t)+"ms(間隔：20ms;await)" 
+	cy=ginfo_cy
+	t2=timer_getTime()
+	repeat 20
+		await 20
+		pos 400, cy : mes strf("%2d:%4d(%d)",cnt,timer_getTime()-t,timer_getTime()-t2) : cy=ginfo_cy
+		t2=timer_getTime()
+	loop
+	pos 400,cy : mes "終了:"+(timer_getTime()-t)+"ms"
+	stop
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_kill
+タイマーループを終了させる
+
+%prm
+p1
+p1=0～ : タイマーループID
+
+%inst
+タイマーループを終了させます。
+
+タイマーループIDとは、timer_loop後にstatに格納される値です。
+
+タイマーループ内でのタイマー終了はtimer_breakが利用できます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_init
+タイマーループ初期化処理（_init_end まで）
+
+%prm
+; パラメータリスト を記入
+; パラメータ説明文 を記入
+
+%inst
+timer_repeatを実行したときtimer_loopまで処理を飛ばしますが、その際、タイマーループ内にtimer_initがあれば _init_end までの区間が一度だけ処理されます。
+初期化処理に利用して、uniq()変数などに格納すると良いでしょう。
+
+記述方法は以下の通り。
+
+timer_repeat
+    timer_init :
+        // 初期化処理
+    	_init_end
+    // ループ間処理
+timer_loop
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_break
+タイマーループから抜けだしてタイマーも終了させる
+
+%prm
+; パラメータリスト を記入
+; パラメータ説明文 を記入
+
+%inst
+timer_repeat～timer_loop間のタイマーループから、強制的に抜け出しタイマーも終了させます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+%index
+timer_continue
+タイマーループをやり直す
+
+%prm
+p1,p2
+p1=0～ : 繰り返しカウンタ変更値
+p2=0～1(0) : 1=timer_easeの基準時間をリセット
+
+%inst
+timer_repeat～timer_loop間のループをやり直します。
+
+通常ループのcontinue命令と同じような処理となります。
+ただし、すぐにtimer_repeatから再開されるのではなく、次のタイマー発動時間まで待機します。
+
+パラメータp2はtimer_easeのための基準時間をリセットするかどうかのフラグです。
+使用するとtimer_easeのイージング値取得を最初からやり直すことができます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+
+%index
+timer_cnt
+タイマーループのカウンター
+
+%prm
+; パラメータリスト を記入
+; パラメータ説明文 を記入
+
+%inst
+timer_repeat～timer_loopループのカウンターです。
+
+timer_continueで制御することができます。
+
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+拡張システム変数
+
+%index
+timer_getTime
+ミリ秒タイマー
+
+%prm
+()
+; パラメータ説明文 を記入
+
+%inst
+Windows が起動してからの経過時間を ms (ミリ秒, 1/1000 秒) 単位で返します。
+
+この関数は、Win32API の timeGetTime() そのものとなっています。
+
+html{
+<u><b>HSP3Dishで使用した場合</b></u>
+}html
+getreq var, SYSREQ_TIMER の値がそのまま返されます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+拡張入出力制御命令
+
+%index
+timer_ease
+タイマーループ内で時間変化によるイージング値の取得
+
+%prm
+p1, p2,p3, p4, p5
+p1 : イージング値取得変数（p3と同じ型の配列変数になる）
+p2 : イージング値補間の初期値の値もしくは変数（1次元配列）
+p3 : イージング値補間の終着値の値もしくは変数（1次元配列）
+p4 : 計算式のタイプ値（setease命令のものと同値）
+p5=1～(1) : 補間にかける時間（ミリ秒）
+
+%inst
+タイマーループ内でsetease, getease(geteasef)のイージング値を簡単に取得できるようにしたものです。
+
+html{
+<u><b>設定と取得のイメージ</b></u>
+}html
+p2  →  p3 : 始点と終点の設定
+ … p1 …  : 時間に応じて出力値が変化 (p5 ミリ秒かけて変化)
+
+p4の計算式のタイプ値は、seteaseの頁を参照してください。
+p2, p3 は配列を使えるので、座標 p2(x1,y1) → p3(x2,y2) のように一度にイージング値の計算を行えます。
+
+どれだけ進んだかはtimer_ease実行後のrefdvalを見ることで確認できます。
+refdval : 0.0 → 1.0 （進捗度：距離ではなく時間進捗）
+
+イージング値の計算はp3が整数か実数かを見て適切な関数(geteaseかgeteasefか)を使用しています。
+
+基準となる時間はtimer_repeatを実行した時間が記憶されています。
+タイマーループの中でイージング値を最初から受け取りたくなったら、timer_continueの第2パラメータのフラグを使用して基準時間をリセットすることができます。
+
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+拡張入出力制御命令
+%index
+timer_getTimerTime
+実行中のタイマーループの経過時間を取得
+
+%prm
+(p1)
+p1=0～ : タイマーループID
+
+%inst
+指定タイマーループが実行中の場合、タイマーの経過時間を取得します。
+
+実行中でない場合は-1を返します。
+
+timer_repeat ～ timer_loop の間に記述する場合、p1を省略できます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+拡張入出力制御命令
+
+%index
+geteaseT
+時間変化によるイージング値を取得
+
+%prm
+p1,p2, p3,p4, p5,p6,p7
+p1 : イージング値取得変数（p3と同じ型の配列変数になる）
+p2=0～ : 現在の時間（ミリ秒）
+p3 : イージング値補間の初期値の値もしくは変数（1次元配列）
+p4=0～ : 基準となる始点の時間（ミリ秒）
+p5 : イージング値補間の終着値の値もしくは変数（1次元配列）
+p6 : 計算式のタイプ値（setease命令のものと同値）
+p7=1～(1) : 補間にかける時間（ミリ秒）
+
+%inst
+timer_easeをタイマーループ外でも使えるようにしたものです。
+基本的な使用方法はtimer_easeの頁を参考にしてください。
+
+timer_easeから p2 と p4 の時間指定が増えています。
+
+p4 の「基準となる始点の時間」は固定させて、p2 の「現在の時間」を変化させるようにしてください。
+p2 と p4 は時間差を見ているだけなので、基準時間p4はシステム時間から取っても、ゼロに指定してしまっても問題ありません。
+それぞれの時間の取得はtimer_getTime()等を活用すると良いでしょう。
+
+p7 は、p2, p4 のようにどこに基準を取るかは関係ありません。
+例えば１秒で遷移したい場合は1000(ミリ秒)を指定します。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+拡張入出力制御命令
+%index
+timer_setTimerSpeed
+タイマーループの繰り返し間隔を変更
+
+%prm
+p1,p2
+p1=0～ : タイマーループID
+p2 : ミリ秒（繰り返しの間隔）の値もしくは変数（1次元配列）
+%inst
+timer_repeatで設定したタイマーループの繰り返し間隔を変更します。
+
+タイマーループIDは、timer_loop後のstatに格納されています。
+
+タイマーループ内では p1 を省略できて、自身のタイマーループを対象とすることができます。
+
+p2：繰り返し間隔を配列指定した際の仕様はtimer_repeatの項目を参照してください。
+
+
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_deinit
+タイマーループ後始末処理
+
+%prm
+; パラメータリスト を記入
+; パラメータ説明文 を記入
+
+%inst
+タイマーループ間で指定回数の最後の1回だけ実行させることが出来ます。
+また、timer_killをした場合にもtimer_deinitの処理分だけ呼び出されます。（timer_repeat～timer_deinit間は実行されません。）
+
+記述方法は以下の通り。
+必ず、ループ間処理の最後に記述してください。
+
+timer_repeat
+    // ループ間処理
+    timer_deinit:
+        // 後始末処理
+timer_loop
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_loop
+タイマーループの始まりに戻る
+
+%prm
+
+%inst
+timer_repeat命令で指定したループの終わりを指定します。
+詳しくはtimer_repeat命令の項を参照してください。
+
+timer_loopの後、statにタイマーループIDが格納されます。
+この値は timer_kill でタイマーを終了させるのに使います。
+
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_setTimerEngine
+タイマーの実行タイミングを変更する（オート/マニュアル）
+
+%prm
+p1
+p1=0～1 : 0=オート，1=マニュアル
+
+%inst
+基本的にtimer_repeatは何もしなくても指定した時間ごとに自動で実行されます。(オート)
+
+ただし事前にタイマーエンジンをマニュアルに指定することで実行タイミングをコントロールすることができます。
+
+これによって、await 16(60FPS)等でループしていた場合に、隙間で勝手に実行されるのを防ぐことができます。
+
+タイマーの実行はループの中にtimer_fireを組み込んでください。
+指定時間になったもの(超えたもの)があるか確認して必要なものだけ実行します。
+
+
+タイマーの実行タイミングはtimer_repeat1つ1つに対して指定することができます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+拡張入出力制御命令
+
+%index
+timer_fire
+タイマーのマニュアル実行時に確認/実行を行う。
+
+%prm
+; パラメータリスト を記入
+; パラメータ説明文 を記入
+
+%inst
+基本的にtimer_repeatは何もしなくても指定した時間ごとに自動で実行されます。(オート)
+
+ただし、事前にtimer_setTimerEngineでマニュアル指定することで実行タイミングをコントロールすることができます。
+
+これによって、await 16(60FPS)等でループしていた場合に、隙間で勝手に実行されるのを防ぐことができます。
+
+タイマーの実行はループの中にtimer_fireを組み込んでください。
+指定時間になったもの(超えたもの)があるか確認して必要なものだけ実行します。
+
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+uniq_start
+uniq()のスコープ開始
+
+%prm
+[マクロ]
+; パラメータ説明文 を記入
+
+%inst
+uniq()を使うことで、名前の被らないユニークな変数が使えるようになります。
+
+区間(スコープ)を uniq_start, uniq_end で区切る必要があります。
+
+timer_repeatには既にuniq_startが組み込まれています。
+そのため、timer_repeat～timer_loop区間ではuniq_start,uniq_endを記述することなくuniq()が使用できます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御マクロ
+
+%index
+uniq
+ユニークな変数を定義
+
+%prm
+()　[マクロ]
+; パラメータ説明文 を記入
+
+%inst
+指定した区間において、名前の被らないユニークな変数として扱えるようになります。
+html{
+<ul>
+<li>区間中ずっとuniq()表記をする必要があります。</li>
+<li>区間(スコープ)は uniq_start, uniq_end で区切ります。</li>
+</ul>
+Debugウィンドウ＞変数＞モジュールを見てもらうとわかりますが、名前の違う変数を定義するようになっているだけです。
+}html
+
+timer_repeat,timer_loopには既にそれぞれuniq_start,uniq_endが組み込まれています。
+そのため、timer_repeat～timer_loop区間ではuniq_start,uniq_endを記述することなくuniq()が使用できます。
+
+%sample
+//
+//  uniq()検証用サンプルスクリプト
+//
+#include "mod_uniq.hsp"
+
+a=1 : b=2 : c=3
+mes "a = "+a,1 : mes "\tb = "+b,1 : mes "\tc = "+c :pos 0
+
+uniq_start
+
+	uniq(a)=4 : uniq(b)=5 : uniq(c)=6
+	mes "a = "+uniq(a),1 : mes "\tb = "+uniq(b),1 : mes "\tc = "+uniq(c) :pos 0
+	
+	uniq_start
+
+		uniq(a)=7 : uniq(b)=8 : uniq(c)=9
+		mes "a = "+uniq(a),1 : mes "\tb = "+uniq(b),1 : mes "\tc = "+uniq(c) :pos 0
+
+	uniq_end
+	
+	uniq_start
+
+		uniq(a) = "a" : uniq(b) = "b" ;: uniq(c) = "c"
+		mes "a = "+uniq(a),1 : mes "\tb = "+uniq(b),1 : mes "\tc = "+uniq(c) :pos 0
+		ddim uniq(d),4
+		uniq(d)=1.2, 2.3, 3.4
+		mes "d = ",1
+		foreach uniq(d)
+			mes ""+uniq(d)(cnt)+", ",1
+		loop
+		mes "" :pos 0
+
+	uniq_end
+
+	mes "a = "+uniq(a),1 : mes "\tb = "+uniq(b),1 : mes "\tc = "+uniq(c) :pos 0
+	
+uniq_end
+
+mes "a = "+a,1 : mes "\tb = "+b,1 : mes "\tc = "+c :pos 0
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御マクロ
+
+%index
+uniq_end
+uniq()のスコープ終了
+
+
+%prm
+[マクロ]
+; パラメータ説明文 を記入
+
+%inst
+uniq()を使うことで、名前の被らないユニークな変数が使えるようになります。
+
+区間(スコープ)を uniq_start, uniq_end で区切る必要があります。
+
+timer_loopには既にuniq_endが組み込まれています。
+そのため、timer_repeat～timer_loop区間ではuniq_start,uniq_endを記述することなくuniq()が使用できます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御マクロ
+
+%index
+timer_waiton
+実行を一定時間中断する（タイマーループ割り込み＋oncmd等の割り込みジャンプに対応）
+
+%prm
+p1
+p1(100) : 待ち時間(10ms単位)
+
+%inst
+プログラムの実行を一定時間だけ中断します。
+
+中断中にタイマーループの指定時間が来たら適宜実行されるようになっています。
+
+また、oncmd等の割り込みジャンプにも対応しています。
+------------
+通常のwaitでは oncmd, onkey, onclick の割り込みジャンプが発生すると、return で戻ってたときに待ち時間が残っていても次の行から処理が始まってしまいます。
+
+timer_waitonは、残り時間があった場合は残りのぶん再waitします。
+------------
+
+mod_TimerRepeat.hsp をインクルードした時点で、通常のwait(await,stop)命令がtimer_waiton(timer_awaiton,timer_stop)の機能で上書きされます。（waitと書いてもtimer_waitonの処理が実行されます。）
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+%index
+timer_awaiton
+一定の時間で待つ（タイマーループ割り込み＋oncmd等の割り込みジャンプに対応）
+
+%prm
+p1
+p1=0～(0) : 待ち時間(1ms単位)
+
+%inst
+プログラムの実行を一定時間だけ中断します。
+
+timer_waiton のawait版です。
+詳細はtimer_waitonの頁を参照ください。
+
+html{
+<u><b>waitとawaitの違い</b></u>
+}html
+wait 100 ループ ×３回
+・・1000ms・・□処理(200ms)□・・1000ms・・□処理(350ms)□・・1000ms・・
+　→合計3550ms
+await 1000 ループ ×３回
+・・1000ms・・□処理(200ms)□・800ms・□処理(350ms)□・650ms・
+　→合計3000ms
+
+awaitは処理がかかった分を自動で差し引いて待ちます。
+
+
+mod_TimerRepeat.hsp をインクルードした時点で、通常のwait(await,stop)命令がtimer_waiton(timer_awaiton,timer_stop)の機能で上書きされます。（waitと書いてもtimer_waitonの処理が実行されます。）
+
+%sample
+// 
+//  waitとawaitの違い
+//    ※ mod_TimerRepeat.hspによって waitとawaitの機能は上書きされています。
+//
+
+#include "mod_TimerRepeat.hsp"
+
+onkey gosub *key
+onclick gosub *click
+
+t2 = timer_getTime()
+//wait
+repeat 10
+	wait 100
+	t1=timer_getTime()
+	mes "wait "+cnt+" : "+(t1-t2)+"ms",1
+	t2=t1
+	repeat 1000 ;ちょっとだけ重たい処理
+		title ""+cnt
+	loop
+	mes " /処理 "+(timer_getTime()-t2)+"ms" :pos 0
+loop
+mes
+
+//await
+repeat 10
+	await 1000
+	t1=timer_getTime()
+	mes "await "+cnt+" : "+(t1-t2)+"ms",1
+	t2=t1
+	repeat 1000 ;ちょっとだけ重たい処理
+		title ""+cnt
+	loop
+	mes " /処理 "+(timer_getTime()-t2)+"ms" :pos 0
+loop
+
+stop
+*key
+	title strf("key - %d, click - %d", keyc, clickc) : keyc++
+	return
+*click
+	title strf("key - %d, click - %d", keyc, clickc) : clickc++
+	return
+
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+%index
+timer_stop
+プログラム中断（タイマーループ割り込みに対応）
+
+%prm
+p1
+p1(通常省略) : キーワード(wait)
+
+%inst
+プログラムの実行を一時中断します。
+
+ただし、中断中にタイマーループの指定時間が来たら適宜実行されるようになっています。
+
+内部でawaitを用いたループとして展開されます。
+awaitを使いたくないという場合は、
+
+　　timer_stop wait
+
+という風にキーワードを記述してください。waitのループとして展開します。
+但し、wait(10ms単位)の精度となるので注意してください。
+
+
+mod_TimerRepeat.hsp をインクルードした時点で、通常のstop(命令がtimer_stopの機能で上書きされます。（stopと書いてもtimer_stopの処理が実行されます。）
+%sample
+; サンプルスクリプト を記入
+
+%href
+timer_repeat
+timer_loop
+timer_kill
+timer_init
+timer_deinit
+timer_break
+timer_continue
+timer_cnt
+timer_getTimerTime
+timer_getTime
+timer_setTimerSpeed
+timer_ease
+geteaseT
+timer_setTimerEngine
+timer_fire
+
+uniq_start
+uniq
+uniq_end
+
+timer_waiton
+timer_awaiton
+timer_stop
+
+%group
+プログラム制御命令
+
+*/

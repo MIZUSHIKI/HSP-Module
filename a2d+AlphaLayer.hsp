@@ -1,0 +1,1861 @@
+// 末尾に @ReadMe.txt, a2d+AlphaLayer.hs 付き
+
+//
+//	a2d+AlphaLayer.hsp - ver.2.1									by MIZUSHIKI
+//
+#if __hspver__<=$3507
+#packopt manifest "usedAlphaLayer.manifest" ;HSP3.5用(3.5.1では効果なし)
+#ifdef _debug
+#include "mod_regexp.as"
+#endif
+#endif
+
+#include "a2d.hsp"
+#include "modclbk3.hsp"	// コールバック関数用モジュール
+
+#ifndef setImageToLayer
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//	a2d+AlphaLayer を使用するための種々確認と処理（デバッグ時）
+//		usedAlphaLayer.manifest，usedAlphaLayer.version(HSP3.51)の作成
+//			・実行ファイル自動作成の際に利用します。
+//			・HSP3.51では#packopt manifestだけでは書き換えが動作せず、version(もしくはicon)も#packoptしないといけない。(HSP3.5はOK)
+//		hsptmp内に#packopt manifest,version があるか確認(HSP3.51)
+//			・HSP3.51では#packoptがメインスクリプトにないと機能しないので無ければ書いてもらうように促す。
+//		デバッグ実行ランタイム(hsp3.exe)のマニフェスト確認と改造
+//			・マニフェストでWindows8をサポートしていることが明記されていないといけないので改造する。
+//
+//		※ HSP Ver.3.6β1以上を使用すればこれらは全て不要になります。
+//		　 デフォルトでマニフェストにWindows8(7/8/8.1/10)のサポートOS IDが付くようになりました。
+//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#if __hspver__<$3601
+#ifdef _debug
+#if __hspver__<$3507
+	dialog "HSP3.5以下だと標準機能でマニフェストの書き換えができないのでHSP3.5以上を使用してください。\n\n---\nおすすめはHSP3.6β1以上です。\nデバッグ実行ランタイム(hsp3.exe)の改造等が不要になります。",1,"a2d+AlphaLayer モジュール"
+	end
+#endif
+;hsp3.exeに「windows8以降の機能に対応する」というマニフェストが付加されているか確認→置換処理→再起動促し
+__manifest_kakunin__ ;
+#endif
+#endif
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//	AlphaLayerモジュール本体
+//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#module AlphaLayerMod
+
+#uselib "USER32.dll"
+#func SetParent "SetParent" int,int
+#func GetWindowLong "GetWindowLongA" int,int
+#func SetWindowLong "SetWindowLongA" int,int,int
+#cfunc GetDC "GetDC" sptr
+#func ReleaseDC "ReleaseDC" sptr,sptr
+#func UpdateLayeredWindow "UpdateLayeredWindow" int,int,int,int,int,int,int,int,int
+#cfunc DefWindowProc "DefWindowProcA" int,int,int,int
+#func SetWindowPos "SetWindowPos" sptr,sptr,sptr,sptr,sptr,sptr,sptr
+#func SetActiveWindow "SetActiveWindow" int
+#func GetWindowRect "GetWindowRect" int, int
+#func ScreenToClient "ScreenToClient" int, int
+#func GetParent "GetParent" int
+#func FindWindowExA  "FindWindowExA" sptr,sptr,sptr,sptr
+#func GetWindowRgnBox "GetWindowRgnBox" int,int
+#func SetWindowRgn "SetWindowRgn" int,int,int
+#func RegisterClassEx "RegisterClassExA" sptr
+#func CreateWindowEx "CreateWindowExA" sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr
+#func DestroyWindow "DestroyWindow" sptr
+#cfunc IsWindowVisible "IsWindowVisible" int
+
+#uselib "GDI32.dll"
+#cfunc CreateCompatibleDC "CreateCompatibleDC" sptr
+#cfunc CreateCompatibleBitmap "CreateCompatibleBitmap" sptr,sptr,sptr
+#func SelectObject "SelectObject" sptr,sptr
+#func DeleteDC "DeleteDC" sptr
+#func StretchDIBits "StretchDIBits" sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr
+#func DeleteObject "DeleteObject" sptr
+#func CreateRectRgn "CreateRectRgn" int,int,int,int
+#func GetStockObject "GetStockObject" int
+#uselib "gdiplus.dll"
+#func GdipGetPropertyItemSize "GdipGetPropertyItemSize" int,int,int
+#func GdipGetPropertyItem "GdipGetPropertyItem" int,int,int,int
+#func GdipImageGetFrameDimensionsList "GdipImageGetFrameDimensionsList" int,int,int
+#func GdipImageGetFrameCount "GdipImageGetFrameCount" int,int,int
+#func GdipImageSelectActiveFrame "GdipImageSelectActiveFrame" int,int,int
+
+#define WS_POPUP      0x80000000
+#define WS_CHILD      0x40000000
+#define WS_EX_LAYERED 0x00080000
+#define ULW_ALPHA     0x00000002
+#define AC_SRC_OVER   0x00000000
+#define AC_SRC_ALPHA  0x00000001
+#define GWL_STYLE      -16
+#define GWL_EXSTYLE    -20		;拡張ウィンドウスタイル
+#define WS_EX_TRANSPARENT $20	;マウスイベントの透過
+#define DIB_RGB_COLORS 0x0
+#define SRCCOPY        0x00CC0020
+#define BI_RGB         0x0
+#define WM_MOUSEACTIVATE 0x21
+#define MA_NOACTIVATE  3
+
+#define HWND_TOP 0	//Z オーダーの先頭
+#define HWND_BOTTOM 1	//Z オーダーの最後
+#define HWND_TOPMOST -1	//常に一番手前に表示される最前面ウィンドウにする
+#define HWND_NOTOPMOST -2	//最前面ウィンドウ以外のすべてのウィンドウの前
+#define SWP_NOSIZE 1	//サイズを変更しない
+#define SWP_NOMOVE 2	//位置を変更しない
+#define SWP_NOZORDER 4	//Zオーダーを変更しない
+#define SWP_NOREDRAW 8	//変更に伴う再描画をしない
+#define SWP_NOACTIVATE $10	//ウィンドウをアクティブにしない
+#define SWP_FRAMECHANGED $20	//SetWindowLong関数を使用後に変更を適用
+#define SWP_SHOWWINDOW $40	//ウィンドウを表示する
+#define SWP_HIDEWINDOW $80	//ウィンドウを隠す
+#define SWP_NOCOPYBITS $100	//クライアント領域の内容全体を破棄
+#define SWP_NOOWNERZORDER $200	//オーナーウィンドウの Z オーダーを変更しない
+#define SWP_NOSENDCHANGING $400	//WM_WINDOWPOSCHANGINGメッセージを送らない
+#define SWP_DEFERERASE $2000	//WM_SYNCPAINTメッセージを送らない
+#define SWP_ASYNCWINDOWPOS $4000	//非同期処理（？）
+#define SWP_DRAWFRAME SWP_FRAMECHANGED
+#define SWP_NOREPOSITION SWP_NOOWNERZORDER
+
+
+#deffunc _init_@AlphaLayerMod
+	dim rect, 4
+	dim rgnRect,4
+	winbmscr = 0
+	hwnds = 0
+	_templabel = 0
+	oldprocs = 0
+	st = 0
+	ctx = 0
+	callwindowproc = 0
+	size = 0
+	bitmapdata = 0
+	tmpimage = 0
+	guid = 0
+	frames = 0
+	nsizedelay = 0
+	nsize = 0
+	delaybufindexmax = 0
+
+	dim framess,IMGS_MAX@a2d
+	
+	repeat IMGS_MAX@a2d
+		framess(cnt) = 1
+	loop
+	
+	sdim delayBuf,64
+	lpoke delayBuf,0,0
+	
+	// BITMAPINFOHEADER構造体
+	dim BITMAPINFOHEADER, 10
+	BITMAPINFOHEADER(0) = 40				// biSize
+	;BITMAPINFOHEADER(1) = biWidth			// biWidth
+	;BITMAPINFOHEADER(2) = biHeight			// biHeight
+	BITMAPINFOHEADER(3) = 1 | (32 << 16)	// biPlanes & biBitCount
+	BITMAPINFOHEADER(4) = BI_RGB			// biCompression
+	// BITMAPINFO構造体
+	dim BITMAPINFO, 2
+	BITMAPINFO(0) = varptr(BITMAPINFOHEADER)	//メンバをもつ
+	// psize
+	dim psize,2
+	;psize(0) = biWidth
+	;psize(1) = biHeight
+	// pptSrc
+	dim pptSrc,2
+	pptSrc(0) = 0
+	pptSrc(1) = 0
+	// pblend
+	sdim pblend, 4
+	poke pblend, 0, AC_SRC_OVER
+	poke pblend, 1, 0
+	poke pblend, 2, 255
+	poke pblend, 3, AC_SRC_ALPHA
+
+	//コールバック用
+	ldim labels,1
+	
+	_dummyLabel_ = *__dummy__@AlphaLayerMod
+	
+	//ダミーの関数を定義
+	newclbk3 Proc, 4, *WndProc@AlphaLayerMod
+
+	/*ウィンドウクラスの登録------------------------------------------------------------*/
+	//----------------------------------------------------------------------------------//
+	ClassName = "alalLayer"
+	GetStockObject 2
+	hBrush = stat
+
+	dim wcex, 12
+	wcex.0 = 48
+	wcex.1 = 0
+	wcex.2 = Proc
+	wcex.3 = 0
+	wcex.4 = 0
+	wcex.5 = 0;g_hInstance
+	wcex.6 = 0;hIcon
+	wcex.7 = 0;hCursor
+	wcex.8 = hBrush
+	wcex.9 = 0
+	wcex.10= varptr(ClassName)
+	wcex.11= 0;hIcon
+	
+	RegisterClassEx varptr(wcex)
+	//----------------------------------------------------------------------------------//
+	return
+*WndProc@AlphaLayerMod
+	return
+	
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Artlet2D に機能を追加
+//
+#const	PixelFormat32bppPARGB $E200B
+
+#deffunc alGetBitmapPVData_start var ps, var pv ; size, vvar
+	if imgValid@a2d {
+		if imgValid@a2d ! 3 : frames = 1 : else : frames = framess(imgID@a2d)
+		; LockBits して bitmap image へのポインタを得る
+		rect@a2d = 0, 0, imgWidth@a2d, imgHeight@a2d * frames
+		dim BitmapData@a2d, 8
+		GdipBitmapLockBits@a2d imgImage@a2d, varptr(rect@a2d), 1, PixelFormat32bppPARGB, varptr(BitmapData@a2d)
+		;GdipBitmapUnlockBits@a2d imgImage@a2d, varptr(BitmapData@a2d)
+		ps = BitmapData@a2d(0) * BitmapData@a2d(1) * 4  ; Width * Height * ByPP
+		dupptr pv, BitmapData@a2d(4), ps
+		;開いたままにして
+		return 0
+	}
+	return -1
+#deffunc alGetBitmapPVData_end
+	if imgValid@a2d {
+		GdipBitmapUnlockBits@a2d imgImage@a2d, varptr(BitmapData@a2d)
+		;閉じる
+		return 0
+	}
+	return -1
+	
+#defcfunc alGetFramesCount
+	if imgValid@a2d = 3 {
+		return framess(imgID@a2d)
+	}
+	return 1
+#defcfunc alGetLoopCount
+	if imgValid@a2d = 3 {
+		ret=-1
+		index=0
+		repeat
+			d = lpeek(delayBuf,index)
+			if d = 0 :break
+			p=lpeek(delayBuf,index+4)	;id
+			l=lpeek(delayBuf,index+8)	;loopCount
+			f=lpeek(delayBuf,index+12)	;frames
+			if p = alGetID() {
+				ret = l
+				break
+			}
+			index += d
+		loop
+
+		return ret
+	}
+	return -1
+#deffunc alGetFramesDelay array dlys
+	if imgValid@a2d = 3 {
+		ret=0
+		index=0
+		repeat
+			d = lpeek(delayBuf,index)
+			if d = 0 :break
+			p=lpeek(delayBuf,index+4)	;id
+			l=lpeek(delayBuf,index+8)	;loopCount
+			f=lpeek(delayBuf,index+12)	;frames
+			if p = alGetID() {
+				dim dlys,f
+				repeat f
+					dlys(cnt) = lpeek(delayBuf,index+16+4*cnt)*10
+				loop
+				ret = f
+				break
+			}
+			index += d
+		loop
+
+		return ret
+	}
+	return 0
+;-----------------------------------------------------------
+#deffunc alCreateImageByAnimationFile int p1, str p2 ; ID, filename
+
+	alInitModule
+	if gdiplusToken@a2d {
+			
+		GdipLoadImageFromFile@a2d p2, varptr(tmpImage); ファイルから読み込み
+		if( tmpImage == 0 ): return -1
+		
+		GdipGetImageWidth@a2d  tmpImage, varptr(w@a2d)
+		GdipGetImageHeight@a2d tmpImage, varptr(h@a2d)
+	
+		GdipImageGetFrameDimensionsList tmpImage , varptr(guid) , 1;最初のディメンションのGUIDを取得
+		GdipImageGetFrameCount tmpImage , varptr(guid) , varptr(frames);フレーム数を取得
+		
+		GdipGetPropertyItemSize tmpImage ,  0x5100 , varptr(nSizeDelay);ディレイを格納するサイズを取得
+		sdim Delay , nSizeDelay
+		GdipGetPropertyItem tmpImage ,  0x5100 , nSizeDelay , varptr(Delay);ディレイを取得
+		GdipGetPropertyItemSize tmpImage , 0x5101 , varptr(nSize);ディレイを格納するサイズを取得
+		sdim loopCount_ , nSize
+		GdipGetPropertyItem tmpImage , 0x5101 , nSize , varptr(loopCount_);ディレイを取得
+		loopCount = wpeek(loopCount_,16)
+		
+		//alCreateImage p1, w@a2d, h@a2d * frames	; 強制的に 32bpp にするために 2 pass でロード
+		; 有効化
+		alDeleteImage p1, 1	; Image ID 削除
+		imgValidArr@a2d(p1) = 3	; Image ID を有効化
+		alSelectImage p1	; 選択 (dup-context change)
+
+		; プロパティ 設定
+		imgWidth@a2d  = w@a2d
+		imgHeight@a2d = h@a2d
+		framess(p1) = frames
+		index = 0
+		repeat
+			d = lpeek(delayBuf,index)
+			if d = 0 :break
+			;lpeek(delayBuf,index+8)
+			;lpeek(delayBuf,index+12)
+			if lpeek(delayBuf,index+4) = p1 {
+				//前のを消す
+				memcpy delayBuf,delayBuf, delayBufIndexMax-(index+d), index, index+d
+				continue
+			}
+			index += d
+		loop
+		delayBufIndexMax = index + nSizeDelay + 4
+		memexpand delayBuf, delayBufIndexMax
+		lpoke delayBuf, index,    nSizeDelay
+		lpoke delayBuf, index+4,  p1
+		lpoke delayBuf, index+8,  loopCount
+		lpoke delayBuf, index+12, frames
+		memcpy delayBuf, Delay, nSizeDelay-16, index+16, 16
+		lpoke delayBuf, index+nSizeDelay, 0
+
+		; オフスクリーンバッファ Image / Graphics 作成
+		GdipCreateBitmapFromScan0@a2d imgWidth@a2d, imgHeight@a2d*(frames), 0, PixelFormat32bppARGB@a2d, 0, varptr(imgImage@a2d)
+		GdipGetImageGraphicsContext@a2d imgImage@a2d, varptr(imgGraphics@a2d)
+
+		; デフォルト Brush / Pen 作成
+		GdipCreateSolidFill@a2d 0xff000000, varptr(imgBrush@a2d)
+		GdipCreatePen2@a2d imgBrush@a2d, 1, UnitPixel@a2d, varptr(imgPen@a2d) ; (default PenWidth = 1px)
+
+		; Graphics 高画質モードに設定
+		GdipSetSmoothingMode@a2d imgGraphics@a2d, 2	; SmoothingModeHighQuality = QualityModeHigh
+		GdipSetPixelOffsetMode@a2d imgGraphics@a2d, 2	; PixelOffsetModeHighQuality = QualityModeHigh
+		GdipSetTextRenderingHint@a2d imgGraphics@a2d, 4	; TextRenderingHintAntiAlias
+	;	GdipSetCompositingQuality imgGraphics, 2 ; CompositingQualityHighQuality = QualityModeHigh
+		
+		repeat frames
+			GdipImageSelectActiveFrame tmpImage , varptr(guid) , cnt;アクティヴなフレームを選択
+			GdipDrawImageRectRectI@a2d imgGraphics@a2d, tmpImage, 0, h@a2d * cnt, w@a2d, h@a2d, 0, 0, w@a2d, h@a2d, UnitPixel@a2d, 0, 0, 0
+		loop
+	
+
+		GdipDisposeImage@a2d tmpImage
+		tmpImage = 0
+		return 0
+	}
+	return -1
+
+;-----------------------------------------------------------
+#deffunc setAcitiDfp6 int p1, int p2
+	dfp6 = p1
+	if p1 = 9999 : dfp6 = imgHeightArr@a2d(p2)
+	return
+;-----------------------------------------------------------
+; Copy (prm : srcID, destID, destX, destY, width, height, srcX, srcY)
+#undef alCopyImageToImage
+#undef alCopyImageToScreen
+#undef alCopyScreenToImage
+#define global alCopyImageToImage(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)		setAcitiDfp6 %6,%2 :alStretchImageToImage %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
+#define global alCopyImageToScreen(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)	setAcitiDfp6 %6,%2 :alStretchImageToScreen %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
+#define global alCopyScreenToImage(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)	setAcitiDfp6 %6,%2 :alStretchScreenToImage %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
+
+;-----------------------------------------------------------
+//↓これでは消せないことが分かった（@AlphaLayerMod内で#undefしても@a2dモジュール内で使われるalCreateImageは何故か@a2d内で生き残っていてそちらが使われる）
+;#undef alCreateImage
+;#define global alCreateImage(%1=0, %2=640, %3=480)	framess@AlphaLayerMod(%1)=1:dialog "tses":alCreateImage_ %1, %2, %3
+// imgValidArr@a2d = 3 を記憶することで差別化
+// Artlet2D に機能を追加
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	
+//ウィンドウにアルファレイヤーを追加する
+#define global alalSetParent(%1,%2=-1,%3=0,%4=0,%5=0,%6=_dummyLabel_@AlphaLayerMod) _alalSetParent %1,%2,%3,%4,%5,%6
+#deffunc _alalSetParent int imageID, int haritukeID,  int hide, int posX, int posY, label clbkLabel
+
+	if imageID == haritukeID : return
+	if haritukeID < 0 {
+		//p2省略時：描画先ウィンドウ
+		mref winBMSCR, 96+ginfo_sel
+		haritukeHWND = winBMSCR(13)
+	}else :if length(hwnds)>haritukeID {
+		//p2 ID：既存アルファレイヤーの子レイヤーにする
+		if hwnds(haritukeID) != 0 : haritukeHWND = hwnds(haritukeID) :else : return
+	}else :if haritukeID < IMGS_MAX@a2d {
+		//上で引っかからなかったけど512未満なのは何かの間違いだから戻る
+		return
+	}else {
+		//p2 ID以上の数値：ウィンドウハンドルと想定する
+		haritukeHWND = haritukeID
+	}
+	
+	if imageID<IMGS_MAX@a2d {
+		if imgValidArr@a2d(imageID) = 0 : return
+	}
+
+	if length(hwnds)>imageID {
+		if hwnds(imageID) != 0 : DestroyWindow hwnds(imageID)
+	}
+
+	if imageID<IMGS_MAX@a2d {
+		mae_imageID = alGetID()
+		alSelectImage imageID
+	}
+	sxs(imageID) = alGetWidth()
+	sys(imageID) = alGetHeight()
+	CreateWindowEx WS_EX_LAYERED|WS_EX_TRANSPARENT, "alalLayer", "{imageID:"+imageID+"}", 0x86000000, posX, posY, alGetWidth(), alGetHeight(), 0, 0, 0/*g_Instance*/, 0
+	alalLayerHwnd = stat
+	if imageID<IMGS_MAX@a2d {
+		alSelectImage mae_imageID
+	}
+	
+	hwnds(imageID) = alalLayerHwnd
+
+	GetWindowLong alalLayerHwnd, GWL_STYLE
+	SetWindowLong alalLayerHwnd, GWL_STYLE, stat|WS_CHILD|WS_POPUP^WS_POPUP
+	SetParent alalLayerHwnd, haritukeHWND
+
+	if imageID<IMGS_MAX@a2d {
+		_alalRedraw imageID, -1 ; ImageID → AlphaLayer に内容をコピー
+	}else {
+		_alalRedraw imageID, alGetID() ; カレントImageID → AlphaLayer に内容をコピー
+	}
+	if hide == 0 : alalShow imageID
+	clbkLabel_ = clbkLabel
+	if lpeek(clbkLabel_,0) != lpeek(_dummyLabel_,0) : _setClbk@AlphaLayerMod imageID, clbkLabel
+	
+	return
+
+;コールバックをセットする
+#define global alalCallback(%1,%2=0) _tempLabel@AlphaLayerMod=%2: _whichClbk@AlphaLayerMod %1
+
+#deffunc _whichClbk@AlphaLayerMod int imageID
+
+	if vartype(_tempLabel)==1 {
+		//セット
+		_setClbk@AlphaLayerMod imageID, _tempLabel
+	}else {
+		if _tempLabel == 0 {
+			//解除
+			_unsetClbk@AlphaLayerMod imageID
+		}else {
+			//再開
+			if length(labels)<=imageID :return
+			if lpeek(labels(imageID),0) == 0 :return
+			_setClbk@AlphaLayerMod imageID, labels(imageID)
+		}
+	}
+	return
+
+#deffunc _setClbk@AlphaLayerMod int imageID, label clbkLabel
+	if length(hwnds)<=imageID :return
+	labels(imageID) = clbkLabel
+	
+	_flg_=0
+	if length(oldprocs)>imageID {
+		if oldprocs(imageID) != 0 {
+			_flg_ = 1
+		}
+	}
+	if _flg_==0 {
+		GetWindowLong hwnds(imageID), -4;	// ウィンドウプロシージャのアドレス取得
+		oldprocs(imageID) = stat
+	}
+	newclbk3 newproc, 4, *clbk@AlphaLayerMod;
+	SetWindowLong hwnds(imageID), -4, newproc;		// ウィンドウプロシージャの書き換え
+	
+	GetWindowLong hwnds(imageID), GWL_EXSTYLE
+	SetWindowLong hwnds(imageID), GWL_EXSTYLE, stat | WS_EX_TRANSPARENT ^ WS_EX_TRANSPARENT
+
+	return
+;コールバックを解除
+#deffunc _unsetClbk@AlphaLayerMod int imageID
+	if length(hwnds)<=imageID :return
+	
+	if length(oldprocs)>imageID {
+		if oldprocs(imageID) != 0 {
+			SetWindowLong hwnds(imageID), -4, oldprocs(imageID);		// ウィンドウプロシージャの書き換え
+			oldprocs(imageID) = 0
+		}
+	}
+	GetWindowLong hwnds(imageID), GWL_EXSTYLE
+	SetWindowLong hwnds(imageID), GWL_EXSTYLE, stat | WS_EX_TRANSPARENT
+	return
+#deffunc _AllUnsetCallbackAlphaLayer //_deinit_で呼び出し
+	foreach oldprocs
+		if oldprocs(cnt)!=0 {
+			SetWindowLong hwnds(cnt), -4, oldprocs(cnt);		// ウィンドウプロシージャの書き換え
+		}
+	loop
+	return
+
+*clbk@AlphaLayerMod
+		dupptr msg, lparam, wparam*4, 4
+		
+		_imageID = -1
+		foreach hwnds
+			if msg(0) == hwnds(cnt) : _imageID = cnt :break
+		loop
+		if _imageID == -1 {
+			return  DefWindowProc(msg(0), msg(1), msg(2), msg(3));
+		}
+		
+		if length(oldprocs)>_imageID {
+			if oldprocs(_imageID) != 0 {
+				mref st,64
+				st = msg(0)
+				mref ctx,68
+				ctx(8)  = msg(1);iParam
+				ctx(9)  = msg(2) ;wParam
+				ctx(10) = msg(3) ;lParam
+				ctx(201)= _imageID;hspctx.intwnd_id
+				gosub labels(_imageID)
+			}
+			if stat == -1 {
+				// 通常通り
+				return CallWindowProc(oldprocs(_imageID), msg(0), msg(1), msg(2), msg(3));
+			}
+		}
+		// メッセージをスルー
+		return  DefWindowProc(msg(0), msg(1), msg(2), msg(3));
+		
+	return
+
+#define global alalRedraw(%1,%2=-1,%3=0) _alalRedraw %1,%2,%3
+#deffunc _alalRedraw int imageID, int _setImageID, int pp3 //, local hdc_, local hMemDC, local hBitmap
+	if length(hwnds)<=imageID :return
+
+	setImageID = imageID
+	if _setImageID >= 0 : setImageID = _setImageID // alalSetParentで512より大きい数値を指定していたらimageIDに囚われなくてすむ。第2引数のimageをセットする。
+
+	al_ID = alGetID()
+	alSelectImage setImageID
+
+	alGetBitmapPVData_start size, bitmapdata
+	if stat==-1 {
+		alSelectImage al_ID
+		return
+	}
+	al_width = alGetWidth()
+	al_height = alGetHeight()
+	
+
+/* _init_で定義
+	if BITMAPINFOHEADER == 0 {
+		// BITMAPINFOHEADER構造体
+		dim BITMAPINFOHEADER, 10
+		BITMAPINFOHEADER(0) = 40				// biSize
+		;BITMAPINFOHEADER(1) = biWidth			// biWidth
+		;BITMAPINFOHEADER(2) = biHeight			// biHeight
+		BITMAPINFOHEADER(3) = 1 | (32 << 16)	// biPlanes & biBitCount
+		BITMAPINFOHEADER(4) = BI_RGB			// biCompression
+		// BITMAPINFO構造体
+		dim BITMAPINFO, 2
+		BITMAPINFO(0) = varptr(BITMAPINFOHEADER)	//メンバをもつ
+		// psize
+		dim psize,2
+		;psize(0) = biWidth
+		;psize(1) = biHeight
+		// pptSrc
+		dim pptSrc,2
+		pptSrc(0) = 0
+		pptSrc(1) = 0
+		// pblend
+		sdim pblend, 4
+		poke pblend, 0, AC_SRC_OVER
+		poke pblend, 1, 0
+		poke pblend, 2, 255
+		poke pblend, 3, AC_SRC_ALPHA
+	}
+*/
+	biWidth  = sxs(imageID)	//ginfo_sx
+	biHeight = sys(imageID)	//ginfo_sy
+
+	if imgValidArr@a2d(setImageID) ! 3 : frames = 1 : else : frames = framess(setImageID)
+	
+	BITMAPINFOHEADER(1) = biWidth			// biWidth
+	BITMAPINFOHEADER(2) = biHeight*frames	// biHeight
+	psize(0) = biWidth
+	psize(1) = biHeight
+	poke pblend, 2, 255
+	
+
+	hdc_    = GetDC( hwnds(imageID) )
+	hMemDC  = CreateCompatibleDC(hdc_)
+	hBitmap = CreateCompatibleBitmap(hdc_, biWidth, biHeight)
+	ReleaseDC hwnds(imageID), hdc_
+	SelectObject hMemDC, hBitmap
+	StretchDIBits hMemDC, 0, 0, biWidth, biHeight, 0, al_height*(pp3+1) +1, al_width, -al_height, varptr(bitmapdata), BITMAPINFO, DIB_RGB_COLORS, SRCCOPY
+	hdc_ = GetDC( hwnds(imageID) )
+	UpdateLayeredWindow hwnds(imageID), hdc_, 0, varptr(psize), hMemDC, varptr(pptSrc), 0, varptr(pblend), ULW_ALPHA	//layerBMSCR.4 == hdc
+	ReleaseDC hwnds(imageID), hdc_
+	DeleteObject hBitmap
+	DeleteDC hMemDC
+
+	alGetBitmapPVData_end
+	alSelectImage al_ID
+	return
+
+#deffunc alalAlpha int imageID, int bAlpha
+	if length(hwnds)<=imageID :return
+	poke pblend, 2, bAlpha
+	UpdateLayeredWindow hwnds(imageID), 0, 0, 0, 0, 0, 0, varptr(pblend), ULW_ALPHA
+	return
+
+#deffunc alalShow int imageID
+	if length(hwnds)<=imageID :return
+	SetWindowPos hwnds(imageID), 0, 0,0,0,0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW
+	return
+#defcfunc alalIsShown int imageID
+	if length(hwnds)<=imageID :return 0
+	return IsWindowVisible( hwnds(imageID) )
+	
+#deffunc alalHide int imageID
+	if length(hwnds)<=imageID :return
+	SetWindowPos hwnds(imageID), 0, 0,0,0,0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW
+	return
+
+#define global alalGetRect(%1=-1,%2,%3=-2147483648) _getRect@AlphaLayerMod %1,%2,%3
+#deffunc _getRect@AlphaLayerMod int imageID, array _rect, int scID
+	if length(hwnds)<=imageID :return
+	dim _rect,4
+	_hwnd = hwnd
+	if imageID >= 0 : _hwnd = hwnds(imageID)
+	GetWindowRect _hwnd, varptr(_rect)
+	GetWindowRgnBox _hwnd, varptr(rgnRect)
+	if stat == 0 : rgnRect = 0,0, _rect(2)-_rect(0), _rect(3)-_rect(1)
+
+	_rect(2) = _rect(0)+rgnRect(2), _rect(1)+rgnRect(3)
+	_rect(0) = _rect(0)+rgnRect(0), _rect(1)+rgnRect(1) 
+
+	if scID == -2147483648 {
+		GetParent _hwnd : _hwnd = stat
+	}else :if scID >= 0 {
+		if length(hwnds)<=scID :return
+		_hwnd = hwnds(scID)
+	}else {
+		return ;スクリーン座標を返す
+	}
+	
+	size = _rect(2)-_rect(0),_rect(3)-_rect(1)
+	if _hwnd!0 : ScreenToClient _hwnd, varptr(_rect) : _rect(2) = _rect(0)+size(0), _rect(1)+size(1)
+	return
+
+
+#define global alalWidth(%1=-1,%2=-2147483648,%3=-2147483648,%4=-2147483648,%5=-2147483648,%6=0) _width@AlphaLayerMod %1,%2,%3,%4,%5,%6
+#define defGetWindowRect(%1,%2) GetWindowRect %1, varptr(%2) : size = %2(2)-%2(0),%2(3)-%2(1) : GetParent %1 : if stat!0 : ScreenToClient stat, varptr(%2) : %2(2) = %2(0)+size(0), %2(1)+size(1)
+#deffunc _width@AlphaLayerMod int imageID, int w, int h, int x, int y, int type
+	_w=w : _h=h : _x=x : _y=y
+	rgnflg = 1
+
+	_hwnd = hwnd
+	scMaxSizeX = ginfo_sx
+	scMaxSizeY = ginfo_sy
+	if imageID >= 0 : _hwnd = hwnds(imageID) : scMaxSizeX = sxs(imageID) : scMaxSizeY = sys(imageID)
+	
+	defGetWindowRect _hwnd, rect
+	GetWindowRgnBox _hwnd, varptr(rgnRect)
+	if stat <= 1 : rgnRect = 0,0, rect(2)-rect(0), rect(3)-rect(1) : rgnflg=0
+	mae_rgnRect = rgnRect(0),rgnRect(1),rgnRect(2),rgnRect(3)
+	
+	//サイズ_w,_h
+	if _w==-2147483648 : _w = rgnRect(2)-rgnRect(0) :else :if _w<0 :_w=0
+	if _h==-2147483648 : _h = rgnRect(3)-rgnRect(1) :else :if _h<0 :_h=0
+	
+	//基準点_x,_y
+	if _x==-2147483648 {
+		switch(type)
+			case 1
+				_x = rect(0) + rgnRect(2)
+				swbreak
+			case 2
+				_x = rect(0) + rgnRect(2)
+				swbreak
+			case 3
+				_x = rect(0) + rgnRect(0)
+				swbreak
+			case 4
+				_x = rect(0) + rgnRect(0) + (rgnRect(2)-rgnRect(0))/2
+				swbreak
+			case 5
+				_x = rect(0) + rgnRect(0) + (rgnRect(2)-rgnRect(0))/2
+				swbreak
+			case 6
+				_x = rect(0) + rgnRect(2)
+				swbreak
+			case 7
+				_x = rect(0) + rgnRect(0) + (rgnRect(2)-rgnRect(0))/2
+				swbreak
+			case 8
+				_x = rect(0) + rgnRect(0)
+				swbreak
+			default
+				_x = rect(0) + rgnRect(0)
+		swend
+	}
+	if _y==-2147483648  {
+		switch(type)
+			case 1
+				_y = rect(1) + rgnRect(1)
+				swbreak
+			case 2
+				_y = rect(1) + rgnRect(3)
+				swbreak
+			case 3
+				_y = rect(1) + rgnRect(3)
+				swbreak
+			case 4
+				_y = rect(1) + rgnRect(1) + (rgnRect(3)-rgnRect(1))/2
+				swbreak
+			case 5
+				_y = rect(1) + rgnRect(1)
+				swbreak
+			case 6
+				_y = rect(1) + rgnRect(1) + (rgnRect(3)-rgnRect(1))/2
+				swbreak
+			case 7
+				_y = rect(1) + rgnRect(3)
+				swbreak
+			case 8
+				_y = rect(1) + rgnRect(1) + (rgnRect(3)-rgnRect(1))/2
+				swbreak
+			default
+				_y = rect(1) + rgnRect(1)
+		swend
+	}
+	
+	//基準点からサイズを修正する
+	switch(type)
+		case 1 :
+			rgnRect(0) = rgnRect(2) - _w : if rgnRect(0) < 0			: rgnRect(0) = 0
+			;rgnRect(1) = rgnRect(1)
+			;rgnRect(2) = rgnRect(2)
+			rgnRect(3) = rgnRect(1) + _h : if rgnRect(3) > scMaxSizeY	: rgnRect(3) = scMaxSizeY
+			swbreak
+		case 2 :
+			rgnRect(0) = rgnRect(2) - _w : if rgnRect(0) < 0 			: rgnRect(0) = 0
+			rgnRect(1) = rgnRect(3) - _h : if rgnRect(1) < 0 			: rgnRect(1) = 0
+			;rgnRect(2) = rgnRect(2)
+			;rgnRect(3) = rgnRect(3)
+			swbreak
+		case 3 :
+			;rgnRect(0) = rgnRect(0)
+			rgnRect(1) = rgnRect(3) - _h : if rgnRect(1) < 0 			: rgnRect(1) = 0
+			rgnRect(2) = rgnRect(0) + _w : if rgnRect(2) > scMaxSizeX	: rgnRect(2) = scMaxSizeX
+			;rgnRect(3) = rgnRect(3)
+			swbreak
+		case 4 :
+			rgnRect(0) = mae_rgnRect(0) + (mae_rgnRect(2)-mae_rgnRect(0))/2 - _w/2	: if rgnRect(0) < 0 			: rgnRect(0) = 0
+			rgnRect(1) = mae_rgnRect(1) + (mae_rgnRect(3)-mae_rgnRect(1))/2 - _h/2	: if rgnRect(1) < 0 			: rgnRect(1) = 0
+			rgnRect(2) = mae_rgnRect(2) - (mae_rgnRect(2)-mae_rgnRect(0))/2 + _w/2	: if rgnRect(2) > scMaxSizeX	: rgnRect(2) = scMaxSizeX
+			rgnRect(3) = mae_rgnRect(3) - (mae_rgnRect(3)-mae_rgnRect(1))/2 + _h/2	: if rgnRect(3) > scMaxSizeY	: rgnRect(3) = scMaxSizeY
+			swbreak
+		case 5 :
+			rgnRect(0) = mae_rgnRect(0) + (mae_rgnRect(2)-mae_rgnRect(0))/2 - _w/2	: if rgnRect(0) < 0 			: rgnRect(0) = 0
+			;rgnRect(1) = rgnRect(1)
+			rgnRect(2) = mae_rgnRect(2) - (mae_rgnRect(2)-mae_rgnRect(0))/2 + _w/2	: if rgnRect(2) > scMaxSizeX	: rgnRect(2) = scMaxSizeX
+			rgnRect(3) = rgnRect(1) + _h : if rgnRect(3) > scMaxSizeY	: rgnRect(3) = scMaxSizeY
+			swbreak
+		case 6 :
+			rgnRect(0) = rgnRect(2) - _w : if rgnRect(0) < 0			: rgnRect(0) = 0
+			rgnRect(1) = mae_rgnRect(1) + (mae_rgnRect(3)-mae_rgnRect(1))/2 - _h/2	: if rgnRect(1) < 0 			: rgnRect(1) = 0
+			;rgnRect(2) = rgnRect(2)
+			rgnRect(3) = mae_rgnRect(3) - (mae_rgnRect(3)-mae_rgnRect(1))/2 + _h/2	: if rgnRect(3) > scMaxSizeY	: rgnRect(3) = scMaxSizeY
+			swbreak
+		case 7 :
+			rgnRect(0) = mae_rgnRect(0) + (mae_rgnRect(2)-mae_rgnRect(0))/2 - _w/2	: if rgnRect(0) < 0 			: rgnRect(0) = 0
+			rgnRect(1) = rgnRect(3) - _h : if rgnRect(1) < 0 			: rgnRect(1) = 0
+			rgnRect(2) = mae_rgnRect(2) - (mae_rgnRect(2)-mae_rgnRect(0))/2 + _w/2	: if rgnRect(2) > scMaxSizeX	: rgnRect(2) = scMaxSizeX
+			;rgnRect(3) = rgnRect(3)
+			swbreak
+		case 8 :
+			;rgnRect(0) = rgnRect(0)
+			rgnRect(1) = mae_rgnRect(1) + (mae_rgnRect(3)-mae_rgnRect(1))/2 - _h/2	: if rgnRect(1) < 0 			: rgnRect(1) = 0
+			rgnRect(2) = rgnRect(0) + _w : if rgnRect(2) > scMaxSizeX	: rgnRect(2) = scMaxSizeX
+			rgnRect(3) = mae_rgnRect(3) - (mae_rgnRect(3)-mae_rgnRect(1))/2 + _h/2	: if rgnRect(3) > scMaxSizeY	: rgnRect(3) = scMaxSizeY
+			swbreak
+		default
+			;rgnRect(0) = rgnRect(0)
+			;rgnRect(1) = rgnRect(1)
+			rgnRect(2) = rgnRect(0) + _w : if rgnRect(2) > scMaxSizeX	: rgnRect(2) = scMaxSizeX
+			rgnRect(3) = rgnRect(1) + _h : if rgnRect(3) > scMaxSizeY	: rgnRect(3) = scMaxSizeY
+	swend
+	//基準点から左上x,yにする
+	switch(type)
+		case 1
+			_x -= mae_rgnRect(2)
+			_y -= mae_rgnRect(1)
+			swbreak
+		case 2
+			_x -= mae_rgnRect(2)
+			_y -= mae_rgnRect(3)
+			swbreak
+		case 3
+			_x -= mae_rgnRect(0)
+			_y -= mae_rgnRect(3)
+			swbreak
+		case 4
+			_x -= (mae_rgnRect(2)-mae_rgnRect(0))/2 + mae_rgnRect(0)
+			_y -= (mae_rgnRect(3)-mae_rgnRect(1))/2 + mae_rgnRect(1)
+			swbreak
+		case 5
+			_x -= (mae_rgnRect(2)-mae_rgnRect(0))/2 + mae_rgnRect(0)
+			_y -= mae_rgnRect(1)
+			swbreak
+		case 6
+			_x -= mae_rgnRect(2)
+			_y -= (mae_rgnRect(3)-mae_rgnRect(1))/2 + mae_rgnRect(1)
+			swbreak
+		case 7
+			_x -= (mae_rgnRect(2)-mae_rgnRect(0))/2 + mae_rgnRect(0)
+			_y -= mae_rgnRect(3)
+			swbreak
+		case 8
+			_x -= mae_rgnRect(0)
+			_y -= (mae_rgnRect(3)-mae_rgnRect(1))/2 + mae_rgnRect(1)
+			swbreak
+		default
+			_x -= mae_rgnRect(0)
+			_y -= mae_rgnRect(1)
+	swend
+	if rgnRect(0) != mae_rgnRect(0) || rgnRect(1) != mae_rgnRect(1) || rgnRect(2) != mae_rgnRect(2) || rgnRect(3) != mae_rgnRect(3) {
+		if (rgnRect(2)-rgnRect(0)) == scMaxSizeX && (rgnRect(3)-rgnRect(1)) == scMaxSizeY {
+			if rgnflg == 1 {
+				SetWindowRgn _hwnd, 0, 1
+			}
+		}else {
+			CreateRectRgn rgnRect(0), rgnRect(1), rgnRect(2), rgnRect(3)
+			SetWindowRgn _hwnd, stat, 1
+		}
+	}
+	if _x != rect(0) || _y != rect(1) {
+		SetWindowPos _hwnd, 0, _x,_y, 0,0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE
+	}
+	
+	return
+
+;// Zオーダー操作
+#define global alalZtop(%1) _zOrder@AlphaLayerMod %1, -2	//HWND_TOP
+#define global alalZbottom(%1) _zOrder@AlphaLayerMod %1, -1	//HWND_BOTTOM
+#define global alalZnext(%1,%2) _zOrder@AlphaLayerMod %1, %2	//hWndInsertAfter
+#deffunc _zOrder@AlphaLayerMod int imageID, int _flg
+	flg = _flg
+	if flg < 0 {
+		flg += 2
+	}else {
+		flg = hwnds(flg)
+	}
+	SetWindowPos hwnds(imageID), flg, 0,0,0,0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+	return
+*__dummy__@AlphaLayerMod
+	return
+
+#deffunc _deinit_@AlphaLayerMod onexit
+	_AllUnsetCallbackAlphaLayer
+	repeat length(hwnds)
+		SetWindowPos hwnds(cnt), 0, 0,0,0,0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW
+		SetParent hwnds(cnt),0
+	loop
+	return
+
+#global
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	a2d+AlphaLayer を使用するための種々確認と処理（デバッグ時）
+#if __hspver__<$3601
+#ifdef _debug
+
+#module a2d_al_debug
+#uselib "KERNEL32.DLL"
+	#define BeginUpdateResource BeginUpdateResourceA
+	#func BeginUpdateResourceA "BeginUpdateResourceA" sptr,sptr
+	#func BeginUpdateResourceW "BeginUpdateResourceW" wptr,wptr
+	#define UpdateResource UpdateResourceA
+	#func UpdateResourceA "UpdateResourceA" sptr,sptr,sptr,sptr,sptr,sptr
+	#func UpdateResourceW "UpdateResourceW" wptr,wptr,wptr,wptr,wptr,wptr
+	#define EndUpdateResource EndUpdateResourceA
+	#func EndUpdateResourceA "EndUpdateResourceA" sptr,sptr
+	#func EndUpdateResourceW "EndUpdateResourceW" wptr,wptr
+#uselib "msvcrt"
+	#func rename "rename" str, str
+
+#deffunc __manifest_kakunin__
+	flg=0
+	//下記すべてを満たせば、改造済みとみなして何もせず戻る。
+	//1.マニフェスト(usedAlphaLayer.manifest)の有無
+	//2.バージョンリソース(usedAlphaLayer.version)の有無(HSP3.51のみ)
+	//3.hsptmpに#packopt manifest,versionが書いてあるか(HSP3.51のみ)
+	exist "usedAlphaLayer.manifest"
+	flg = (strsize = -1)
+	if hspver != $3507 { //HSP3.51
+		exist "usedAlphaLayer.version"
+		flg |= (strsize = -1)
+		
+		exist "hsptmp"
+		if strsize != -1 {
+			msize = strsize :if msize > 12*1024 : msize = 12*1024
+			sdim m,msize+1
+			bload "hsptmp",m,msize
+			packopt_flg = (match(m,"#packopt\\smanifest")=="") || (match(m,"#packopt\\sversion")=="") ;後でメインスクリプトに←を書いて欲しい警告をする。
+			flg |= packopt_flg
+		}
+	}
+	if flg == 0 :return //何もせず戻る。
+	
+	//hsp3.exeファイルパス
+	path_exe = dir_exe+"\\hsp3.exe"
+	//サポートOS
+	id_w8os = "4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38"
+	//マニフェスト中身
+	buf_manifest = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\"> \n<assemblyIdentity \nversion=\"1.0.0.0\" \nprocessorArchitecture=\"X86\" \nname=\"OnionSoftware.hsp3.exe\"\ntype=\"win32\"\n/> \n<compatibility xmlns=\"urn:schemas-microsoft-com:compatibility.v1\"> \n  <application>\n    <supportedOS Id=\"{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}\"/>\n  </application>\n</compatibility>\n<description>XPStyle</description> \n<dependency> \n<dependentAssembly> \n<assemblyIdentity \ntype=\"win32\" \nname=\"Microsoft.Windows.Common-Controls\" \nversion=\"6.0.0.0\" \nprocessorArchitecture=\"X86\" \npublicKeyToken=\"6595b64144ccf1df\" \nlanguage=\"*\" \n/> \n</dependentAssembly> \n</dependency> \n</assembly>"
+	//Version中身
+	buf_version = ";行頭「;」でコメントアウト\n;_FILEVERSION=0.0.0.0\n;_PRODUCTVERSION=0.0.0.0\n;Comments=コメント\n;CompanyName=企業名\n;FileDescription=ファイルの説明\n;FileVersion=0.0\n;InternalName=内部名\n;LegalCopyright=著作権\n;OriginalFilename=元のファイル名（test.exeなど）\n;ProductName=製品名\n;ProductVersion=0.0"
+
+	exist path_exe
+	if strsize == -1 { return }
+	sdim m,strsize
+	bload path_exe,m,strsize
+
+	//hsp3.exeの中身を検索してサポートOS表記があるか確認
+	if bsearch( 0, varptr.m, strsize, id_w8os, strlen(id_w8os) ) == -1 {
+		//無ければ書き換えて良いかを聞く
+		if hspver != $3507 {
+			;HSP3.51
+			dialog "デバッグ実行ランタイム(hsp3.exe)を改造してマニフェストを変更しても良いですか？\n\n・a2d+AlphaLayerはWindows8以降でしか動作しません。\n・hsp3.exeがWindows8の機能に対応していることをマニフェストで宣言することで、デバッグでもa2d+AlphaLayerが使えるようになります。\n\n変更前の「hsp3.exe」は「hsp3_origin.exe」として残りますので問題があれば元に戻せます。\n\n----------\n・実行ファイル自動作成時にもマニフェストが書き換えが必要です。\n・HSP3.51ではメインスクリプトに\n#packopt manifest \"usedAlphaLayer.manifest\"\n#packopt version \"usedAlphaLayer.version\"\nの記述が必要になります。（両ファイルはこのあと自動で生成されます。）\n\n※ HSP Ver.3.6β1からはデフォルトでマニフェストにWindows8のサポートOS IDが記述されており、この改造や追加ファイルは必要ありません。",3,"a2d+AlphaLayer モジュール"
+		}else {
+			;HSP3.5
+			dialog "デバッグ実行ランタイム(hsp3.exe)を改造してマニフェストを変更しても良いですか？\n\n・a2d+AlphaLayerはWindows8以降でしか動作しません。\n・hsp3.exeがWindows8の機能に対応していることをマニフェストで宣言することで、デバッグでもa2d+AlphaLayerが使えるようになります。\n\n変更前の「hsp3.exe」は「hsp3_origin.exe」として残りますので問題があれば元に戻せます。\n\n----------\n・実行ファイル自動作成時にもマニフェストが書き換わります。（モジュール内部に #packopt manifest \"usedAlphaLayer.manifest\" が記述されています。ファイルはこのあと自動生成されます。）\n・自分のマニフェストを使いたい場合は #include \"a2d+AlphaLayer.hsp\" の後で #packopt manifest を宣言してください。後の宣言が優先されます。\n\n※ HSP Ver.3.6β1からはデフォルトでマニフェストにWindows8のサポートOS IDが記述されており、この改造をする必要はありません。",3,"a2d+AlphaLayer モジュール"
+		}
+		if stat == 7 {
+			dialog "変更をキャンセルしました。"
+			return
+		}
+
+		// オリジナルをコピー → オリジナルをhsp3_originにリネーム → コピーをhsp3にリネーム
+		origin_path = getpath(path_exe,1)+"_origin"+getpath(path_exe,2)
+		temp_path = getpath(path_exe,1)+"_temp"+getpath(path_exe,2)
+		exist origin_path
+		if strsize == -1 {
+			exist temp_path
+			if strsize == -1 {
+				bcopy path_exe, temp_path
+			}
+			// iconins.hsp のコードを参考に。
+			;	リソース変更の開始宣言
+			path_exe2 = temp_path
+			BeginUpdateResource path_exe2, 0// TRUEにして既存のリソース削除
+			if stat = 0 {
+				dialog "リソース変更に失敗しました。",1,"a2d+AlphaLayer モジュール"
+				return
+			}
+			hResource = stat
+	
+			;	manifestの反映 ;1033
+			UpdateResource hResource, 24/*RT_MANIFEST*/, 1, 1033, varptr(buf_manifest), strlen(buf_manifest)// 決め打ちで 24/1/1033 にしてる。 hsp351とhsp35はOK。
+			
+			;	リソース変更の終了宣言
+			EndUpdateResource hResource, 0
+		
+			rename path_exe, origin_path
+			rename temp_path, path_exe
+
+			updateResourceFlg = 1
+		}
+
+	}
+	
+	;マニフェストを作る。
+	exist "usedAlphaLayer.manifest"
+	if strsize==-1 {
+		notesel buf_manifest
+		notesave "usedAlphaLayer.manifest"
+		noteunsel
+	}
+	if hspver != $3507 { //HSP3.51
+		;バージョンリソースを作る。
+		exist "usedAlphaLayer.version"
+		if strsize==-1 {
+			notesel buf_version
+			notesave "usedAlphaLayer.version"
+			noteunsel
+		}
+	}
+
+	if updateResourceFlg == 1 {
+		dialog "完了しました。\n\n一度、終了しますので再度「コンパイル＋実行(F5)」をお願いします。"
+		end
+	}
+	
+	if packopt_flg == 1 { //HSP3.51のみ
+		dialog "メインスクリプト冒頭に以下の2行を追加してください。\n実行ファイル自動作成でマニフェストの変更が必要になります。\n\n----------\n#packopt manifest \"usedAlphaLayer.manifest\"\n#packopt version \"usedAlphaLayer.version\"\n----------\n( Ctrl+C を押せばコピーできます。 )\n\n※ HSP3.5 か HSP3.6β1以降を使えばこの追加は不要になります。",1,"a2d+AlphaLayer モジュール - HSP3.51"
+	}
+	return
+	
+#uselib "kernel32.dll"		// マシン語実行用メモリ確保
+#func global VirtualProtect	"VirtualProtect"	var, int, int, var
+#define global mdim(%1,%2)dim %1,%2 :VirtualProtect %1,(%2)*4,$40,AZSD
+; bsearch 2006/03/29	Ver 0.9
+// バイナリサーチ(BM法) : 開始index, bufポインタ, サイズ , 検索キー,検索キーの長さ
+// statに開始indexからのバイト数が返ります。見つからない場合は-1
+#defcfunc bsearch int i, int pbuf,int size, var key,int lkey
+	if bm=0{ mdim bm,49 : pbm=varptr.bm
+	bm. 0= $81EC8B55,$000400EC,$10558B00,$758B5653,$01FE8314,$324CB60F,$227557FF
+	bm. 7= $4539C033,$928E0F0C,$8B000000,$B60F0855,$D13B1014,$0086840F,$3B400000
+	bm.14= $EB7C0C45,$C68B7BEB,$000100B9,$00BD8D00,$F3FFFFFC,$FF468DAB,$C085C933
+	bm.21= $F88B5E7E,$111CB60F,$9DBC8941,$FFFFFC00,$7CC83B4F,$8B49EBEF,$B60F0845
+	bm.28= $B60F0104,$3BFF327C,$8A2B75C7,$8BFE165C,$418D087D,$381C3AFF,$F88B1C75
+	bm.35= $7C8DF92B,$FF85FF37,$5D8B2674,$8A4F4808,$143A1714,$10558B18,$458BEC74
+	bm.42= $04B60F08,$858C0301,$FFFFFC00,$7C0C4D3B,$FFC883B2,$C95B5E5F,$000000C3}
+	prm=pbuf+i, size-i,varptr.key,lkey : return callfunc(prm, pbm, 4)
+#global
+
+#endif
+#endif
+//	a2d+AlphaLayer を使用するための種々確認と処理（デバッグ時）
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+_init_@AlphaLayerMod
+#endif
+
+/*
+
+// @ReadMe.txt //
+
+━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+モジュール名│a2d+AlphaLayer.hsp
+  バージョン│2.1
+        作者│MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
+            │                                  Copyright(C) 2019-2020 MIZUSHIKI
+━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+■ 概要 ■
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+Artlet2Dモジュール(a2d.hsp)の仮想イメージを用いて、アルファブレンド半透明 子ウィ
+ンドウを作ることができます。
+
+デフォルトではマウスクリック等のウィンドウメッセージを透過する仕様になっています
+が、コールバックを設定してサブクラス化し、ウィンドウメッセージを取得することも出
+来ます。
+
+
+■ 注意 ■
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+Windows 8 以降でしか動作しません。
+このモジュールを利用して作られた作品には「対応OS:Windows8以降」を記述願います。
+
+開発環境は、HSP3.6β1以降を推奨。
+デバッグ実行ランタイム(hsp3.exe)の改造が不要になります。
+
+
+■ 命令 / 関数 ■
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+alalSetParent
+　Artlet2D仮想イメージをアルファレイヤー子ウィンドウとして描画先ウィンドウに貼り付ける
+alalRedraw
+　アルファレイヤーにArtlet2D仮想イメージを再描画する
+alalCallback
+　アルファレイヤーのWindowsメッセージ割り込み指定
+alalShow
+　アルファレイヤー子ウィンドウを表示させる
+alalIsShown
+　アルファレイヤー子ウィンドウの表示状態を取得
+alalHide
+　アルファレイヤー子ウィンドウを非表示にする
+alalAlpha
+　アルファレイヤーの透明度を設定する
+alalWidth
+　アルファレイヤー子ウィンドウのサイズ・位置設定
+alalGetRect
+　アルファレイヤー子ウィンドウの左上・右下座標の取得
+alalZtop
+　アルファレイヤーをZオーダー（表示順序）の一番上に配置する
+alalZbottom
+　アルファレイヤーをZオーダー（表示順序）の一番下に配置する
+alalZnext
+　アルファレイヤーのZオーダー（表示順序）を指定したウィンドウの下に配置する
+
+【Artlet2D拡張】
+alCreateImageByAnimationFile
+　アニメーション画像ファイルから仮想イメージを作成
+alGetFramesDelay
+　アニメーションのフレーム間の時間間隔を取得
+alGetFramesCount
+　アニメーションのフレーム数を取得
+alGetLoopCount
+　アニメーションのループ回数を取得
+
+
+■ 謝辞 ■
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+参考：なたで様「レイヤードウィンドウ総合モジュール」
+　　https://www.natade.net/lang/hsp/
+　　(HSP | なたでラボ / モジュール )
+　ウィンドウの透過処理について、なたで様の「レイヤードウィンドウ総合モジュール」
+　を参考にさせて頂きました。ありがとうございます！
+
+参考：nori様「GIFアニメサンプルスクリプト」
+　　http://hsp.tv/play/pforum.php?mode=pastwch&num=75891
+　　(HSPTV!掲示板 / HSPでGIFアニメーションの再生)
+　GIFアニメーションの再生の仕方を参考にさせていただきました。
+　ありがとうございます！
+
+モジュール：ぷま様「バイナリサーチ(BM法) bsearch」
+　　http://hsp.tv/play/pforum.php?mode=pastwch&num=29717 （代替）
+　　(HSPTV!掲示板 / sdim,bload命令について)
+　非常に速い検索が可能になりました。ありがとうございます！
+
+
+■ 履歴
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+ version 2.1   2020/ 9/10
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+　・GIFアニメーションファイルの読み込みに対応。【Artlet2D拡張】
+　　　alCreateImageByAnimationFile
+　　　alGetFramesDelay
+　　　alGetFramesCount
+　　　alGetLoopCount
+　・alalIsShown関数を追加。
+　・A2DのImage ID１つにつきアルファレイヤー1つじゃなくても利用できる裏技を内包。 
+  ・デバイスコンテキストが一部解放されていなかった問題を修正。
+　・未初期化変数の初期化処理を入れるよう修正。
+　・alalWidthでサイズを0以下にすると以降再表示できなくなるバグを修正。
+
+ version 2.0   2020/ 6/ 6
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+  ・命令を全面見直し(HSPのウィンドウを使わず自力でウィンドウを生成)。
+
+ version 1.1   2019/11/10
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+  ・HSP3.5 で動かなくなっていたバグを修正。
+
+ version 1.0   2019/10/31
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+  ・リリース。
+
+
+┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳
+┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻
+
+// a2d+AlphaLayer.hs //
+
+;
+;	HSP help manager用 HELPソースファイル
+;	(先頭が「;」の行はコメントとして処理されます)
+;
+
+%type
+拡張命令
+%ver
+2.1
+%note
+a2d+AlphaLayer.hspをインクルードすること。
+対応OS：Windows 8 以降
+%dll
+a2d+AlphaLayer
+%date
+2020/9/10
+%author
+MIZUSHIKI
+%url
+http://suwa.pupu.jp/
+%port
+Win
+
+
+
+%index
+alalSetParent
+Artlet2D仮想イメージをアルファレイヤー子ウィンドウとして描画先ウィンドウに貼り付ける
+%group
+画面制御命令
+%prm
+p1, p2,p3,p4,p5,*label
+p1=0～        : Artlet2D仮想イメージID
+
+p2=-1～(-1)   : 貼り付け先の指定（省略 = 描画先ウィンドウ, 0～ = 既に作ったアルファレイヤーのArtlet2D仮想イメージID）
+p3=0,1(0)     : 非表示張り付けフラグ(1 = 非表示)
+p4=0～(0) : ウィンドウの配置X
+p5=0～(0) : ウィンドウの配置Y
+*label    : alalCallbackで指定するラベル（省略で無視）
+
+%inst
+描画先ウィンドウに、指定したArtlet2D仮想イメージIDをアルファレイヤー子ウィンドウとして貼り付けます。
+
+貼り付けたアルファレイヤー子ウィンドウはマウスクリック等のメッセージが透過します。
+ウィンドウメッセージを取得したい場合は、alalCallback を利用してください。
+
+アルファレイヤーへ描画する基本手順は、以下のようになります。
+html{
+<u><b>アルファレイヤー描画/更新の手順</b></u><br>
+<ol>
+<li>alCreateImage等でArtlet2D仮想イメージを作る。</li>
+<li>Artlet2D仮想イメージ に書き込み。</li>
+<li><b>alalSetParent で貼り付け。</b></li>
+<li>Artlet2D仮想イメージの内容を更新。</li>
+<li>alalRedraw で貼り付け先のアルファレイヤー子ウィンドウに内容を反映。</li>
+</ol>
+}html
+　　　以降、4 ⇔ 5 を繰り返す。
+
+p2 以降を指定することで、既存アルファレイヤーの子アルファレイヤーとして張り付けたり、最初は非表示にしたり、一度にコールバック処理を指定したりすることができます。
+
+非表示で張り付けた場合はalalShowで表示できます。
+
+
+【裏技】
+p1に512以上を指定するすることもできます。
+その場合、alalRedrawの2項目目を使用して指定したImage IDから512番以降のアルファレイヤーに画像を転送してください。
+
+p1を512以上にしたとき最初に作られるアルファレイヤーは特例として、現在alSelectImageで選択されているイメージIDのレイヤーサイズと画像になります。
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+
+
+%index
+alalRedraw
+アルファレイヤーにArtlet2D仮想イメージを再描画する
+%group
+画面制御命令
+%prm
+p1, p2,p3
+p1=0～        : Artlet2D仮想イメージID
+
+p2=0～(-1)：貼り付け元Artlet2D仮想イメージID
+p3=0～(0) ：アニメーション画像読み込み時のフレーム番号
+
+%inst
+Artlet2D仮想イメージをアルファレイヤー子ウィンドウに反映します。
+
+アルファ値 込みの画像データ転送となります。
+
+html{
+<u><b>アルファレイヤー描画/更新の手順</b></u><br>
+<ol>
+<li>alCreateImage等でArtlet2D仮想イメージを作る。</li>
+<li>Artlet2D仮想イメージ に書き込み。</li>
+<li>alalSetParent で貼り付け。</li>
+<li>Artlet2D仮想イメージの内容を更新。</li>
+<li><b>alalRedraw で貼り付け先のアルファレイヤー子ウィンドウに内容を反映。</b></li>
+</ol>
+}html
+　　　以降、4 ⇔ 5 を繰り返す。
+
+p3には、alCreateImageByAnimationFile を使ってアニメーションGIF(TIFF)を読み込んだ場合に、アルファレイヤーに反映するフレームの番号を指定します。
+
+
+【裏技】
+alalSetParentのp1には512番以降を指定することもできます。
+alalRedrawのp2を利用することでArtlet2D仮想イメージIDと同じ番号にとらわれることのないアルファレイヤー画像の更新が行えます。
+
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+alCreateImageByAnimationFile
+
+
+%index
+alalCallback
+アルファレイヤーのWindowsメッセージ割り込み指定
+%group
+プログラム制御命令
+%prm
+p1,*label
+p1=0～ : Artlet2D仮想イメージID
+*label : ラベル名
+
+%inst
+アルファレイヤー子ウィンドウにウィンドウメッセージが送られたときに割り込みジャンプするラベルを指定します。
+
+この命令を使うと、アルファレイヤー子ウィンドウにコールバックをセットしてサブクラス化することができます。
+
+割り込みによりジャンプを行なった後はシステム変数iparam、wparam、lparamがセットされます。
+割り込みが発生したArtlet2D仮想イメージIDは、 ginfo(24)またはginfo_intidにより取得することができます。
+html{
+<table border="1" cellpadding="10">
+    <tr>
+      <th>割り込み要因</th>
+      <th>iparam</th>
+      <th>wparam</th>
+      <th>lparam</th>
+    </tr>
+    <tr>
+      <td>SetCallbackAlphaLayer</td>
+      <td>メッセージID</td>
+      <td>wParam</td>
+      <td>lParam</td>
+    </tr>
+  </table>
+}html
+
+システム変数iparamには、送信されたメッセージIDが代入されます。
+また、wparam,lparamはWindowsメッセージとして渡されたパラメータがそのまま格納されています。
+statには割り込みが発生したArtlet2D仮想イメージIDが持つアルファレイヤー子ウィンドウのウィンドウハンドルが格納されています。
+
+この機能を使うことで、アルファレイヤーがクリックされたりすることを検知できるようになります。
+
+また、ラベル先ではstopをしないで、必ずreturnしてください。
+waitもしてはダメです。
+
+基本的に、コールバックで受け取ったメッセージは DefWindowProc を使ってスルーしています。
+return -1 とすることで通常処理させることも可能です。(モジュール側でCallWindowProcします。)
+
+alalSetParent の第5引数でもメッセージ割り込みラベルの指定ができます。
+
+コールバックを解除するには、p2を省略した alalCallback を実行してください。
+
+html{
+<u><b>注意</b></u>
+}html
+マウスの通過でもラベルジャンプが行われ、wait/awaitの待機時間が無効化されてしまいます。
+timer_waiton/timer_awaiton を併用してください。
+（mod_TimerRepeat.hsp をインクルードすればwait/awaitの機能が上書きされます。）
+
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+
+
+%index
+alalShow
+アルファレイヤー子ウィンドウを表示させる
+%group
+画面制御命令
+%prm
+p1
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+
+%inst
+非表示にしていたアルファレイヤー子ウィンドウを表示させます。
+
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+%index
+alalIsShown
+; 見出し を記入
+アルファレイヤー子ウィンドウが表示されているか取得
+
+%prm
+; パラメータリスト を記入
+(p1)
+; パラメータ説明文 を記入
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+
+%inst
+; 解説文 を記入
+アルファレイヤー子ウィンドウの表示状態を取得。
+　0 = 非表示
+　1 = 表示中
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+; 関連項目 を記入
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+
+%group
+; グループ を記入
+拡張入出力命令
+
+%index
+alalHide
+アルファレイヤー子ウィンドウを非表示にする
+%group
+画面制御命令
+%prm
+p1
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+
+%inst
+アルファレイヤー子ウィンドウを非表示にします。
+
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+%index
+alalAlpha
+アルファレイヤーの透明度を設定する
+
+%prm
+p1,p2
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+p2=0～255 : 透明度（0=透明）
+
+%inst
+アルファレイヤー子ウィンドウの透明度を設定します。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+
+%group
+画面制御命令
+
+%index
+alalWidth
+アルファレイヤー子ウィンドウのサイズ・位置設定
+%group
+画面制御命令
+%prm
+p1, p2,p3, p4,p5, p6
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+p2=0～ : サイズX（1ドット単位）
+p3=0～ : サイズY（1ドット単位）
+p4=0～ : 親ウィンドウ上でのX座標（1ドット単位）
+p5=0～ : 親ウィンドウ上でのY座標（1ドット単位）
+p6=0～8(0) : サイズ、位置の基準点指定
+
+%inst
+アルファレイヤーのウィンドウサイズと表示位置を変更します。
+サイズは、最初にalalSetParentしたときのイメージサイズより大きくすることはできません。
+
+p2,p3およびp4,p5で変更したくない項目はそれぞれ省略してください。
+
+また、p6 でウィンドウの位置、サイズの基準点を設定できます。
+html{
+
+<table border="1" cellpadding="2">
+    <tr>
+      <th>指定値</th>
+      <th>基準点</th>
+    </tr>
+    <tr>
+      <td>0</td>
+      <td>左上</td>
+    </tr>
+    <tr>
+      <td>1</td>
+      <td>右上</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>右下</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>左下</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>中心</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>中央上</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>中央右</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>中央下</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>中央左</td>
+    </tr>
+  </table>
+}html
+例えば、p6=4 として p4,p5座標を省略、p2,p3サイズを小さくすると、中心を基点にその場でウィンドウサイズを小さくできます。
+
+【注意】
+実は、この命令によるウィンドウサイズの変更では、実際のウィンドウサイズの変更は行われず、リージョンによって見た目（表示範囲）の変更が行われます。
+そのおかげで、中央基点のサイズ変更等も違和感なく行えるようになっています。
+位置の指定も、リージョンを考慮した移動先を計算しているので、見た目の矩形がウィンドウサイズであるかのように考えて頂ければ良いです。
+
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+
+%index
+alalGetRect
+アルファレイヤー子ウィンドウの左上・右下座標の取得
+
+%prm
+p1,p2,p3
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+p2 : 変数名(Rect構造体)
+p3= : 基準とする座標系（親ウィンドウ、スクリーン座標、指定ウィンドウ）
+
+%inst
+p1で指定したウィンドウの座標を p2の変数に代入します。
+　p2 = 左上X,左上Y、右下X,右下Y
+
+alalWidthでウィンドウサイズを変更すると、実際のウィンドウサイズの変更は行われず、リージョンによる見た目（表示範囲）の変更が行われます。
+この命令は、リージョンを考慮した見た目の矩形の座標を取得します。
+
+p3で基準とする座標系を指定できます。
+html{
+<table border="1" cellpadding="5">
+    <tr>
+      <th>p3</th>
+      <th>座標系</th>
+    </tr>
+    <tr>
+      <td>省略</td>
+      <td>親ウィンドウの座標系</td>
+    </tr>
+    <tr>
+      <td>-1</td>
+      <td>スクリーン座標系</td>
+    </tr>
+    <tr>
+      <td>0～(Artlet2D仮想イメージID)</td>
+      <td>指定アルファレイヤー子ウィンドウの座標系</td>
+    </tr>
+  </table>
+}html
+
+アルファレイヤーの見た目（表示範囲）のリージョン矩形の座標が知りたい場合は、p3も自身のArtlet2D仮想イメージIDを指定することで取得できます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+
+%group
+拡張入出力命令
+
+%index
+alalZtop
+アルファレイヤーをZオーダー（表示順序）の一番上に配置する
+%group
+画面制御命令
+
+%prm
+p1
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+
+%inst
+複数のアルファレイヤーを使用している場合に使用。
+Zオーダー（表示順序）を一番上にします。
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+%index
+alalZbottom
+アルファレイヤーをZオーダー（表示順序）の一番下に配置する
+%group
+画面制御命令
+
+%prm
+p1
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+
+%inst
+複数のアルファレイヤーを使用している場合に使用。
+Zオーダー（表示順序）を一番下にします。
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+%index
+alalZnext
+アルファレイヤーのZオーダー（表示順序）を指定したウィンドウの下に配置する
+%group
+画面制御命令
+
+%prm
+p1,p2
+p1=0～ : Zオーダーを変更したいウィンドウID
+p2=0～ : Artlet2D仮想イメージID（このアルファレイヤーの下に配置される）
+
+%inst
+複数のアルファレイヤーを使用している場合に使用。
+Zオーダー（表示順序）を指定したウィンドウの下にします。
+
+%href
+alalSetParent
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+%index
+alCreateImageByAnimationFile
+; 見出し を記入
+GIF(TIFF)アニメーションファイルから仮想イメージを作成
+
+%prm
+; パラメータリスト を記入
+ID,"file"
+; パラメータ説明文 を記入
+ID : Image ID
+ "file" : 読み込みファイル名
+
+%inst
+; 解説文 を記入
+GIF(TIFF)アニメーションファイルを読み込んで仮想イメージを作成します。
+(APNG/WebPには対応していません。)
+
+基本仕様は alCreateImageByFile を参照してください。
+
+
+読み込んだImage IDにすべてのフレームが縦に並べてロードされます。
+ただし、alGetHeight()は1フレーム分の高さが返されます。
+
+特定のフレームをコピーしたいときは
+　alCopyImageToScreen 1,0, 100,100, alGetWidth(),alGetHeight(), 0,alGetHeight()*5
+等のようにコピー元の座標を特定フレーム分下側に指定してください。
+
+また、alalRedraw の描画更新では p3 にフレーム番号を指定して表示させることができます。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+; 関連項目 を記入
+alCreateImageByFile
+alGetFramesDelay
+alGetFramesCount
+alGetLoopCount
+alalRedraw
+
+
+%group
+; グループ を記入
+ファイル操作
+%index
+alGetFramesDelay
+; 見出し を記入
+仮想イメージに読み込んだGIF(TIFF)アニメのフレーム間の時間間隔を取得
+
+%prm
+; パラメータリスト を記入
+p1
+; パラメータ説明文 を記入
+p1 : 変数名(1次元配列)
+
+%inst
+; 解説文 を記入
+現在選択されている仮想イメージがalCreateImageByAnimationFile によってGIF(TIFF)アニメを読み込んだ仮想イメージの場合、フレーム間の時間間隔を取得します。
+時間の単位はミリ秒です。
+
+p1変数は、フレーム数分の要素を持った一次元配列変数となります。
+
+システム変数statにフレーム数(配列の要素数)が入ります。
+GIF(TIFF)アニメを読み込んでいない通常の仮想イメージの場合、statは0となります。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+; 関連項目 を記入
+alCreateImageByAnimationFile
+alGetFramesCount
+alGetLoopCount
+
+%group
+; グループ を記入
+拡張入出力命令
+
+%index
+alGetFramesCount
+; 見出し を記入
+仮想イメージに読み込んだGIF(TIFF)アニメのフレーム数を取得
+
+%prm
+; パラメータリスト を記入
+()
+; パラメータ説明文 を記入
+
+%inst
+; 解説文 を記入
+現在選択されている仮想イメージがalCreateImageByAnimationFile によってGIF(TIFF)アニメを読み込んだ仮想イメージの場合、フレーム数を取得します。
+
+GIF(TIFF)アニメを読み込んでいない通常の仮想イメージの場合は、1を返します。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+; 関連項目 を記入
+alCreateImageByAnimationFile
+alGetFramesDelay
+alGetLoopCount
+
+%group
+; グループ を記入
+拡張入出力命令
+%index
+alGetLoopCount
+; 見出し を記入
+仮想イメージに読み込んだGIF(TIFF)アニメのループ回数を取得
+
+%prm
+; パラメータリスト を記入
+()
+; パラメータ説明文 を記入
+
+%inst
+; 解説文 を記入
+現在選択されている仮想イメージがalCreateImageByAnimationFile によってGIF(TIFF)アニメを読み込んだ仮想イメージの場合、ループ回数を取得します。
+
+0 の場合、無限ループをあらわしています。
+
+GIF(TIFF)アニメを読み込んでいない通常の仮想イメージの場合は、-1を返します。
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+; 関連項目 を記入
+
+alCreateImageByAnimationFile
+alGetFramesDelay
+alGetFramesCount
+
+%group
+; グループ を記入
+拡張入出力命令
+
+*/
