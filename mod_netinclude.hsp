@@ -1,0 +1,59 @@
+;メインスクリプト内の #netinclude しか認識しません。
+#ifdef _debug
+//デバッグ時のみ #netinclude 処理を実行
+#include "hspinet.as" ;デバッグ時の2つのincludeは我慢してもらう。しか・・・
+#include "mod_regexp.as"
+#define netinclude(%1,%2=_) addition %1* %2
+	exist"hsptmp" //#addition(#include) の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く。(命令が成立すると右側が無視される) 
+	if strsize>0 { ;なるべく文字数を削減する (min版で1行1024文字に抑える)
+		t@_@="":d@_@=dir_exe+"\\common\\" ;初期化
+		notesel t@_@:noteload "hsptmp":noteunsel ;hsptmp読み込み
+		matches t@_@,t@_@,"#netinclude\\s*\"(.+?)\"\\s*/\\s*,*\\s*(\\w*)" ;#netinclude部分を読み取り
+		repeat stat
+			r@_@=""
+			if t@_@.cnt.2="common"{r@_@=d@_@} ;commonの場合
+			exist r@_@+t@_@.cnt.1 ;ファイルがダウンロード済みなら何もしない
+			t@_@.cnt="0" ;ダウンロードしない
+			if strsize<0{ ;t@_@(cnt,0);ダウンロードフラグ / n,m;カウント 
+				if r@_@!d@_@{t@_@.cnt="1":n@_@++}else{t@_@.cnt="2":m@_@++}
+			}
+		loop
+		if n@_@+m@_@>0{
+			a@_@=dir_cur+"\\\n\nに\n\n"
+			repeat 2,1
+				if n@_@=0&cnt=1{continue} ;カレントへのダウンロードが無い
+				if m@_@>0&cnt=2{ ;commonへのダウンロード
+					if n@_@!0{a@_@+="\nをダウンロード、\n------\n\n"}else{a@_@=""}
+					a@_@+=d@_@+"\n\nに\n\n"
+				}
+				r@_@=""+cnt ;commonかそうでないかでt@_@(cnt,0)ダウンロードフラグが違う
+				foreach t@_@:if t@_@.cnt!r@_@{continue}:a@_@+="・"+t@_@.cnt.1+"\n":loop
+			loop			
+			dialog a@_@+"\nをダウンロードします。",2,"#net\include" ;\はmin版の時のmatches検索回避の為
+			if stat=6{
+				netinit ;hspinetの初期化
+				foreach t@_@
+					if t@_@.cnt="0"{continue}
+					c@_@=dir_cur ;カレントディレクトリ保存
+					if t@_@.cnt="2"{chdir d@_@}
+					split t@_@.cnt.1,"/",r@_@ ;URL(ディレクトリ)構造分解
+					if stat>0 {
+						repeat stat-1 ;深い階層を作っていく
+							dirlist a@_@,r@_@.cnt,5 ;フォルダ存在確認
+							if stat=0{mkdir r@_@.cnt} ;フォルダが存在しないなら作る
+							chdir r@_@.cnt ;カレントディレクトリを1階層深くに移動
+						loop
+					}
+					neturl "https://raw.githubusercontent.com/"+getpath(t@_@.cnt.1,32) ;GitHubから
+					netload getpath(t@_@.cnt.1,8) ;HSPモジュールをダウンロード
+					chdir c@_@ ;元のカレントディレクトリに戻す
+				loop
+				dialog"再実行して下さい":end ;ダウンロードしたらもう一度実行してもらう
+			}
+		}
+		sdim t@_@ ;大きめ(?)の変数を初期化
+	}
+#else
+//実行ファイル作成時はただの #include になる
+#define netinclude(%1,%2=_) include %1
+#endif
