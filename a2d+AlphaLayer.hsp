@@ -1,7 +1,7 @@
 // 末尾に @ReadMe.txt, a2d+AlphaLayer.hs 付き
 
 //
-//	a2d+AlphaLayer.hsp - ver.2.1									by MIZUSHIKI
+//	a2d+AlphaLayer.hsp - ver.2.2									by MIZUSHIKI
 //
 #if __hspver__<=$3507
 #packopt manifest "usedAlphaLayer.manifest" ;HSP3.5用(3.5.1では効果なし)
@@ -67,6 +67,8 @@ __manifest_kakunin__ ;
 #func CreateWindowEx "CreateWindowExA" sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr
 #func DestroyWindow "DestroyWindow" sptr
 #cfunc IsWindowVisible "IsWindowVisible" int
+#func CallWindowProc "CallWindowProcA" sptr,sptr,sptr,sptr,sptr
+#func CallWindowProcW "CallWindowProcW" wptr,wptr,wptr,wptr,wptr
 
 #uselib "GDI32.dll"
 #cfunc CreateCompatibleDC "CreateCompatibleDC" sptr
@@ -129,7 +131,6 @@ __manifest_kakunin__ ;
 	oldprocs = 0
 	st = 0
 	ctx = 0
-	callwindowproc = 0
 	size = 0
 	bitmapdata = 0
 	tmpimage = 0
@@ -390,7 +391,7 @@ __manifest_kakunin__ ;
 //ウィンドウにアルファレイヤーを追加する
 #define global alalSetParent(%1,%2=-1,%3=0,%4=0,%5=0,%6=_dummyLabel_@AlphaLayerMod) _alalSetParent %1,%2,%3,%4,%5,%6
 #deffunc _alalSetParent int imageID, int haritukeID,  int hide, int posX, int posY, label clbkLabel
-
+	logmes "alsetpare id1,id2,hide = "+strf("%d,%d,%d",imageID,haritukeID,hide)
 	if imageID == haritukeID : return
 	if haritukeID < 0 {
 		//p2省略時：描画先ウィンドウ
@@ -438,7 +439,10 @@ __manifest_kakunin__ ;
 	}else {
 		_alalRedraw imageID, alGetID() ; カレントImageID → AlphaLayer に内容をコピー
 	}
-	if hide == 0 : alalShow imageID
+	alalShow imageID				; ・何故かWindows 10 May 2020 Update(Ver.20H1)のアプデ辺りから、一度 WS_VISIBLE にしてから ~WS_VISIBLE しないと表示されてしまう。
+									; 　しかも、~WS_VISIBLE で作成したけど見えてしまっているこの状態は、IsWindowVisible()辺りでは非表示状態であると認識してしまう。何故。
+	if hide == 1 : alalHide imageID	; ・その関係なのか[孫レイヤー]を作りたい場合は、一度[子レイヤー]を表示状態のまま作り、[孫レイヤー]を全て貼り付けた後に alalHide() で[子レイヤー]を非表示にするという処置を行う必要がある。
+
 	clbkLabel_ = clbkLabel
 	if lpeek(clbkLabel_,0) != lpeek(_dummyLabel_,0) : _setClbk@AlphaLayerMod imageID, clbkLabel
 	
@@ -1040,9 +1044,9 @@ _init_@AlphaLayerMod
 
 ━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 モジュール名│a2d+AlphaLayer.hsp
-  バージョン│2.1
+  バージョン│2.2
         作者│MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
-            │                                  Copyright(C) 2019-2020 MIZUSHIKI
+            │                                  Copyright(C) 2019-2021 MIZUSHIKI
 ━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ■ 概要 ■
@@ -1124,6 +1128,14 @@ alGetLoopCount
 
 ■ 履歴
 ￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+ version 2.2   2021/ 6/25
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+　・Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから発生したバグに対処。
+　　　非表示状態で作成しても表示されてしまう。(一度VISIBLE→非VISIBLE処理が必要)
+　　　非表示の子レイヤーに張り付けた孫レイヤーが見えてしまう。
+　　　　↑プログラムで回避必要。(詳細：alalSetParentのHelp参照)
+　・CallWindowProcが定義されていなかったバグを修正。
+
  version 2.1   2020/ 9/10
  ￣￣￣￣￣￣￣￣￣￣￣￣
 　・GIFアニメーションファイルの読み込みに対応。【Artlet2D拡張】
@@ -1163,14 +1175,14 @@ alGetLoopCount
 %type
 拡張命令
 %ver
-2.1
+2.2
 %note
 a2d+AlphaLayer.hspをインクルードすること。
 対応OS：Windows 8 以降
 %dll
 a2d+AlphaLayer
 %date
-2020/9/10
+2021/6/25
 %author
 MIZUSHIKI
 %url
@@ -1224,6 +1236,12 @@ p1に512以上を指定するすることもできます。
 その場合、alalRedrawの2項目目を使用して指定したImage IDから512番以降のアルファレイヤーに画像を転送してください。
 
 p1を512以上にしたとき最初に作られるアルファレイヤーは特例として、現在alSelectImageで選択されているイメージIDのレイヤーサイズと画像になります。
+
+★ ！！注意！！ ★
+Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから動作がおかしくなってしまいました。
+既に作った非表示のアルファレイヤー子ウィンドウ[子レイヤー]に新規のアルファレイヤー子ウィンドウ[孫レイヤー]を貼り付けた場合、普通は[孫レイヤー]は見えないはずなのですが、[孫レイヤー]だけ表示されてしまうというバグ(?)が発生しています。
+一度、[子レイヤー]を表示状態のまま作り、[孫レイヤー]を全て貼り付けた後に alalHide で[子レイヤー]を非表示にするという処置を行ってください。
+
 
 %href
 alalSetParent
