@@ -12,7 +12,7 @@
 #endif
 
 //
-//	mod_TimerRepeat.hsp - ver.2.1									by MIZUSHIKI
+//	mod_TimerRepeat.hsp - ver.2.2									by MIZUSHIKI
 //
 #ifndef timer_repeat
 
@@ -282,7 +282,7 @@
 	
 #deffunc _TimerRepeat_easing@modTimerRepeat array arZ, int _miriSecZ, int _miriSecA, int type, int _miriSec
 	miriSec  = _miriSec  :if miriSec  <= 0 :miriSec  = 1
-	miriSecA = _miriSecA :if miriSecA <  0 :miriSecA = 0
+	miriSecA = _miriSecA ;:if miriSecA <  0 :miriSecA = 0 //ƒ}ƒCƒiƒX’l‚à‚ ‚è‚¦‚éBi24.855“úˆÈã‚½‚Â‚Æ‚È‚éB·•ª‚ð‚Æ‚Á‚Ä‚¢‚é‚¾‚¯‚È‚Ì‚Å–â‘è‚È‚¢j
 	miriSecZ = _miriSecZ :if miriSecZ < miriSecA :miriSecZ = miriSecA
 	if length(_arA) != length(_arB) : return -1.0
 	dimtype arZ, vartype(_arB), length(_arB)
@@ -359,9 +359,9 @@ _init_@modTimerRepeat
 
 „ª„ª„ª„ª„ª„ª„¶„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 ƒ‚ƒWƒ…[ƒ‹–¼„ mod_TimerRepeat.hsp
-  ƒo[ƒWƒ‡ƒ“„ 2.1
+  ƒo[ƒWƒ‡ƒ“„ 2.2
         ìŽÒ„ MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
-            „                                   Copyright(C) 2019-2020 MIZUSHIKI
+            „                                   Copyright(C) 2019-2021 MIZUSHIKI
 „ª„ª„ª„ª„ª„ª„¸„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 
 ¡ ŠT—v ¡
@@ -445,6 +445,11 @@ timer_stop
 
 ¡ —š—ð
 PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+
+ version 2.2   2021/ 6/25
+ PPPPPPPPPPPP
+@EWindows‚ð‹N“®‚µ‚½‚Ü‚Ü24.855“úˆÈã‚½‚Â‚Ætimer_ease‚Ìˆ—‚ªƒoƒO‚é–â‘è‚ðC³B
+
  version 2.1   2020/ 9/10
  PPPPPPPPPPPP
 @Etimer_repeat‚Åp1(ŒJ‚è•Ô‚µŠÔŠu)‚ð”’l‚¾‚¯‚Å‚È‚­”z—ñ‚àŽw’è‚Å‚«‚é‚æ‚¤‚É•ÏXB
@@ -479,6 +484,7 @@ timer_stop
   EƒŠƒŠ[ƒXB
 
 
+
 „±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±„±
 „³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³
 
@@ -492,13 +498,13 @@ timer_stop
 %type
 Šg’£–½—ß
 %ver
-2.1
+2.2
 %note
 mod_TimerRepeat.hsp‚ðƒCƒ“ƒNƒ‹[ƒh‚·‚é‚±‚ÆB
 %dll
 mod_TimerRepeat
 %date
-2020/9/10
+2021/6/25
 %author
 MIZUSHIKI
 %url
