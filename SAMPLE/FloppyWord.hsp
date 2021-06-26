@@ -1,0 +1,895 @@
+#packopt name "Floppy-Word"
+#packopt hide 1
+#pack "baku.bmp"   ; hsptv素材：爆発画像
+#pack "se_bom.wav" ; hsptv素材：爆発SE
+#uselib "USER32.DLL"
+#func SetFocus "SetFocus" int
+#include "hsptvapp.as"
+
+#module ; 文字描画命令モジュール
+#deffunc fwTextMes str _txt, int wt
+	txt = _txt
+	repeat strlen(txt)/2+2
+		alEraserBrush : alFillRect 0, 0, ,80 : alColor 170, 170, 170, 255 : alDrawText strmid(txt,0,cnt*2) ,100,30 : alalRedraw 3
+		await wt
+	loop
+	return
+#deffunc fwTextDel int wt
+	if wt=-1 : alEraserBrush : alFillRect 0, 0, ,80 :return
+	repeat strlen(txt)/2+2
+		alEraserBrush : alFillRect 0, 0, ,80 : alColor 170, 170, 170, 255 : alDrawText strmid(txt,0,strlen(txt)-cnt*2) ,100,30 : alalRedraw 3
+		await wt
+	loop
+	return
+#global
+#define _0stop_(%1) *@ :wait 1 :if %1=0{ goto *@b }
+#define global ctype tekitoTime ((gettime(0)-2020)*12 *31*24*60*60 + gettime(1)*31 *24*60*60 + gettime(3)*24 *60*60 + gettime(4)*60 *60 + gettime(5)*60 + gettime(6))
+
+randomize
+startup_code = "54c08342df34b6317837d59b9a1a79d60010d3" ; hsptvappスタートアップコード : サンプルスクリプト用 サブID
+
+//
+//	メインウィンドウ
+//
+bgscr 0, 950, 740 ,, (ginfo_dispx-950)/2, (ginfo_dispy-740)/2
+title "Floppy-Word"
+color 200, 200, 200 : boxf 0,79
+
+// 設定読み込み
+exist dir_exe+"\\FPWD.ini"
+if strsize!-1 {
+	notesel iniText : noteload dir_exe+"\\FPWD.ini"
+	noteget uniqueID,0
+	noteget username,1
+	noteget _myHighScore,2
+	myHighScore = int(_myHighScore)
+	zenpage = myHighScore / 25 + 1
+}else {
+	sdim uniqueID,5
+	repeat 4
+		poke uniqueID,cnt,rnd(88)+39
+	loop
+	username = "無名"
+}
+
+gosub *GAME_GAMEN_SAKUSEI ; ゲーム画面作成：長いのでスクリプト下の方に移動させた
+onkey gosub *ONKEY_TAB
+onexit gosub *quit
+
+gosub *Loading_show ;くるくる・・・結局できないわ。
+hsptv_start startup_code ; スタートアップ : サーバ接続
+gosub *GetScoreData
+//
+//  ゲーム：タイトル
+//
+wait 100
+fwTextMes "フロッピー　ワード", 32
+wait 150
+fwTextDel 48
+wait 100
+fwTextMes "左上のフロッピーの様子がおかしいぞ！？\n＞クリックしてみる？", 24
+
+go=0
+//フロッピーガクブル
+timer_repeat
+	timer_init:
+		alalGetRect 2,uniq(rect)
+		uniq(rect1) = uniq(rect)(0), uniq(rect)(1)
+		_init_end
+	uniq(rect2) = uniq(rect)(0)+rnd(60)-30, uniq(rect)(1)+rnd(60)-30
+	timer_ease uniq(z), uniq(rect1), uniq(rect2), ease_shake_inout, 1000
+	alalWidth 2,,,uniq(z)(0),uniq(z)(1)
+	if refdval >= 1.0 :timer_continue 0,1
+timer_loop
+id_gakuburu=stat
+
+_0stop_ go //フロッピーがクリックされる(go=1)までストップ(中身waitループ)
+
+txt_first="今度はＢａｃｋＳｐａｃｅキーが壊れて押しっぱなしに！！（なりそう）\n" //1回目のプレイだけ表示する
+
+
+//
+//  ゲーム：リスタート場所
+//
+*GAME_RESTART
+	
+alalHide 22
+x=300 : y=200 ;フロッピー位置
+;yy=yousi_y		;用紙位置
+if txt_first == "" : alSelectImage 3 :alEraserBrush : alFillRect : alalRedraw 3 //2回目以降のプレイ時
+alalWidth 1, ,,ginfo_sx/2, yousi_y, 5
+
+go=0
+//フロッピーを初期位置に移動する
+timer_repeat 32
+	timer_init:
+		alalGetRect 2,uniq(rect)
+		uniq(rect1) = uniq(rect)(0), uniq(rect)(1)
+		uniq(rect2) = x, y
+		_init_end
+	timer_ease uniq(z), uniq(rect1), uniq(rect2), ease_cubic_out, 500
+	alalWidth 2,,,uniq(z)(0),uniq(z)(1)
+	if refdval >= 1.0 :go=1 :timer_break
+timer_loop
+
+
+
+_0stop_ go
+
+if txt_first != "" { //1回目のプレイ時に前の文章を削除
+	fwTextDel 32
+	wait 100
+}
+txt = txt_first+"＞Ｔａｂキーを何度も押してフロッピーがいなくなるのを防ごう！！"
+txt_first="" //2回目以降は表示しない
+alColor 170, 170, 170, 255
+fwTextMes txt, 24
+
+scoreMireru = 1
+vel = 0
+_0stop_ vel //onkey -> tab で抜ける
+scoreMireru = 0
+//
+//  ゲーム：メインループ
+//
+alalShow 22
+go=0
+// ぐちゃぐちゃテキトー（後で纏めようと思ったけどそのまま）
+sougyousu=0
+nanngyoume=0
+miterupagenoNangoume=0
+nowpage=1
+
+sc = 0
+#const ySpeed 2 ;
+#const gyoHeight 32
+#const retuWidth 6
+#const sikakuWidth 16
+
+#const yousi_no_kirikawari 1024
+
+#const block_sukima 13
+#const block_width 16
+block_gyo = 6,14,22, 32+6,32+14,32+22
+block = -1,-1,20, rnd(26)+1, rnd(26)+1, rnd(26)+1
+
+		subReturn=1
+		gosub *BLOCK_BYOGA ; 1ページ目のブロックを描画
+
+repeat
+	sc += ySpeed ; ずっとのスクロール量を蓄積
+	yy = -sc \ yousi_no_kirikawari +120 ; 用紙位置
+
+	YousiKirikawari = 0
+	if (sc \ yousi_no_kirikawari)=0 : YousiKirikawari = 1
+	
+	GyoKirikawari = 0
+	GyoKirikawariMae = 0
+	if (sc \ gyoHeight) = 16 :GyoKirikawari = 1
+	if ((sc+ySpeed) \ gyoHeight) = 16 :GyoKirikawariMae = 1
+	
+	nanngyoume += GyoKirikawari ; 現在何行目かを取得（ページ間込み）
+	PageNoAida = 0
+	if (nanngyoume \ 32) >= 25 : PageNoAida = 1
+	
+	miterupagenoNangoume += GyoKirikawari
+	if YousiKirikawari {
+		miterupagenoNangoume -= 32
+
+		block.0 = block.3,block.4,block.5
+		block.3 = rnd(26)+1,rnd(26)+1,rnd(26)+1
+	
+	}
+	
+	//フロッピー
+	vel -= 3 ; 加速度
+	x += vel ; 位置
+
+	mae_fx = fx
+	fx = x
+
+	if fx <155    :fx = 155
+	if fx >795-20 :fx = 795-20
+	
+	//用紙の切り替わり
+	if YousiKirikawari {
+		alSelectImage  3
+		fwTextDel -1
+		  *BLOCK_BYOGA
+		alSelectImage  3
+		alEraserBrush : alFillRect 0, 80
+		repeat 6
+			if block(cnt)<0 :continue
+			alCopyImageToImage 24,3, 80, 80 + block_gyo(cnt) * gyoHeight, block(cnt)*block_width -4, 
+			alCopyImageToImage 24,3, (block(cnt)+block_sukima)*block_width +80, 80 + block_gyo(cnt) * gyoHeight,  640 - (block(cnt)+block_sukima)*block_width, 
+		loop
+		alalRedraw 3
+		  if subReturn=1: subReturn=0:return
+		
+	}
+	//用紙スクロール
+	alalWidth 1, ,,, yy
+
+	//フロッピー
+	alalWidth 2, ,,x,, 0
+	//・・・
+	if PageNoAida=0 {
+		sitaHosei = 0 : ueHosei = 0
+		repeat 3
+			if miterupagenoNangoume = block_gyo(cnt) && block(cnt)>0 : sitaHosei = block(cnt)*block_width : ueHosei = 640 - (block(cnt)+block_sukima)*block_width : break
+		loop
+		alSelectImage  3
+		alColor 255,255,255, 255
+		alFillRect 81+sitaHosei, 80 + (miterupagenoNangoume) * gyoHeight, 640-sitaHosei - ueHosei, 32
+		;■■■■■
+		kousinHaba = ( fx-75 )/retuWidth * retuWidth - 80 -2 -sitaHosei
+		if sitaHosei ! 0 && kousinHaba > block_sukima*block_width : kousinHaba = block_sukima*block_width
+		alCopyImageToImage 23,3, 80+sitaHosei, 80 + (miterupagenoNangoume) * gyoHeight,  kousinHaba, 
+		if GyoKirikawariMae {
+			if (x >= 155 & x<= (795-20)) | (sitaHosei = 0) : alCopyImageToImage 4, 3, ( fx-75 )/retuWidth * retuWidth, (miterupagenoNangoume) * gyoHeight +80
+		}
+		alalRedraw 3
+	}
+
+	//衝突判定
+	syoutotu = sc \ yousi_no_kirikawari
+	repeat 3
+		if syoutotu +30 > block_gyo(cnt)*gyoHeight +10 && syoutotu +2 < block_gyo(cnt)*gyoHeight +22 {
+			if block(cnt)<0 :break
+			if ( (x-155)+32 > 0 && (x-155) < block(cnt)*block_width ) || ( (x-155)+32 > (block(cnt)+block_sukima)*block_width && (x-155) < 640 ) {
+				//壁衝突
+				x = -9999
+			}
+			break
+		}
+	loop
+
+	// 死亡判定
+	if x+32 <= 0 :break
+	if x >= ginfo_sx :break
+
+	//スコア
+	if GyoKirikawari && (PageNoAida=0) :sougyousu++
+	nowpage = sougyousu / 25 + 1
+	if zenpage < nowpage : zenpage = nowpage
+
+	//ステータスバー
+	alSelectImage  21
+	alErase
+	alDrawText ""+nowpage+" / "+zenpage+" ページ　総行数："+sougyousu, 10, 0, ginfo_sx, 30, 0, 1
+	alalRedraw 21
+
+	await 32
+	
+loop
+
+shiMes = "フロッピーがどっか行っちゃった！！"
+
+if x = -9999 {
+	// 壁に接触
+	shiMes = "壁にぶち当たり爆裂四散！！"
+	mmplay 0 ; 爆発音
+	alalGetRect 2,rect
+	alalWidth 26, ,, rect(0)+16, rect(1)+16, 4
+
+	alalWidth 2,,,-50,-50
+	repeat 16
+		alSelectImage 26
+		alErase
+		alCopyImageToImage 25,26, 0,0, 96,96, cnt*96,0
+		alalRedraw 26
+		await 32
+	loop
+}
+
+dialog ""+shiMes+"\n\n　ページ： "+nowpage+" / "+zenpage+"　総行数："+sougyousu, 1,"Floppy - Word"
+
+// スコア - 送信
+if myHighScore < sougyousu {
+	myHighScore = sougyousu
+	dialog "ハイスコア更新！！"
+
+	if lowestScore <= sougyousu {
+		setScores getUniqueID, getUserName, getScore, uniqueID, username, sougyousu
+		normalizeScores getUniqueID, getUserName, getScore
+		
+		gosub *PostScoreData
+	}
+
+	gosub *scoreHyouji
+}
+
+goto *GAME_RESTART
+
+stop
+
+*ONKEY_TAB
+	if scoreMiteru : return
+	if iparam = 9 : vel = 30
+	return
+
+// フロッピー：ガクブルクリック
+*floppy
+	if id_gakuburu == 0 :return
+	if iparam ==  0x0201 { ;WM_LBUTTONDOWN
+		timer_kill id_gakuburu
+		alalCallback 2,0 ;コールバック解除
+		go = 1
+	}
+	return
+// タイトルバー掴み
+*waku
+	sendmsg hwnd,$A1,2,0
+	return
+// ×ボタン
+*batu
+	if iparam == 0x0200 { ;WM_MOUSEMOVE
+		timer_repeat 20
+			timer_init:
+				uniq(flg)=0 ; フェード明 = 0, フェード暗 = 1
+				_init_end
+			if timer_cnt==0 {
+				if uniq(flg)==0 {
+					uniq(a)=1 : uniq(b)=255 : uniq(type) = ease_quad_out
+				}else {
+					uniq(a)=255 : uniq(b)=1 : uniq(type) = ease_quad_in
+				}
+			}
+			timer_ease uniq(z), uniq(a), uniq(b), uniq(type), 150
+			alalAlpha 11, uniq(z)
+			if uniq(flg)==1 {
+				//カーソルがまだレイヤー内だったらカウントを初期化してcontinue
+				alalGetRect 11,uniq(rect),-1
+				if uniq(rect)(0) <= ginfo_mx && ginfo_mx <= uniq(rect)(2) && uniq(rect)(1) <= ginfo_my && ginfo_my <= uniq(rect)(3) : alalAlpha 11, 255 : timer_continue 0,1
+			}
+			if refdval >= 1.0 {
+				if uniq(flg)==0 {
+					uniq(flg)=1
+					timer_continue 0,1
+				}else {
+					timer_break
+				}
+			}
+			timer_deinit:
+				uniq(flg)=0
+				alalAlpha 11, 1
+		timer_loop
+	}else :if iparam ==  0x0201 { ;WM_LBUTTONDOWN
+		gosub *quit
+	}
+	return
+// 終了処理(onexit)
+*quit
+	//ini保存
+	iniText  = ""
+	iniText += ""+uniqueID+"\n"
+	iniText += ""+username+"\n"
+	iniText += ""+myHighScore+"\n"
+	notesel iniText
+	notesave dir_exe+"\\FPWD.ini"
+	end
+	end
+	end
+	return
+// ファイルボタン（スコア-ランキング画面表示）
+*fairu
+	if scoreMireru = 0 :return
+	if iparam == 0x0200 { ;WM_MOUSEMOVE
+		alalAlpha 30, 255
+		timer_repeat 20
+			alalGetRect 30,uniq(rect),-1
+			if uniq(rect)(0) <= ginfo_mx && ginfo_mx <= uniq(rect)(2) && uniq(rect)(1) <= ginfo_my && ginfo_my <= uniq(rect)(3) : timer_continue
+			alalAlpha 30, 1
+			timer_break
+		timer_loop
+	}else :if iparam ==  0x0201 { ;WM_LBUTTONDOWN
+		;移動
+		gosub *scoreHyouji
+	}
+	return
+// スコア-ランキングから戻るボタン
+*fairu_back
+	if iparam == 0x0200 { ;WM_MOUSEMOVE
+		alalAlpha 33, 255
+		timer_repeat 20
+			alalGetRect 33,uniq(rect),-1
+			if uniq(rect)(0) <= ginfo_mx && ginfo_mx <= uniq(rect)(2) && uniq(rect)(1) <= ginfo_my && ginfo_my <= uniq(rect)(3) : timer_continue
+			alalAlpha 33, 1
+			timer_break
+		timer_loop
+	}else :if iparam ==  0x0201 { ;WM_LBUTTONDOWN
+
+		;移動
+		gosub *scoreKakusu
+	}
+	return
+// スコア-ランキング表示処理
+*scoreHyouji
+	scoreMiteru = 1
+	alalShow 31
+	alalHide 12
+	alalShow 32
+	gsel 0
+	objenable id_input,1
+	objenable id_button,1
+	timer_repeat 16
+		timer_ease uniq(z) ,-200, 0, ease_quartic_out, 200
+		alalWidth 32,,,uniq(z)
+		if refdval >= 1.0 :timer_break
+	timer_loop
+	return
+// スコア-ランキング非表示処理
+*scoreKakusu
+	scoreMiteru = 0
+	SetFocus hwnd
+	objenable id_input,0
+	objenable id_button,0
+	timer_repeat 16
+		timer_ease uniq(z) ,0, -200, ease_quad_out, 100
+		alalWidth 32,,,uniq(z)
+		if refdval >= 1.0 {
+			alalHide 31
+			alalShow 12
+			alalHide 32
+			timer_break
+		}
+	timer_loop
+	return
+// スコア-ランキング中身描画処理
+*ScoreDraw
+	// 描画
+	alSelectImage 34
+	alErase
+	;if flg=0 : alFont "",16 : alColor 255,0,0,255 : alDrawText "スコアデータ取得失敗" :alalRedraw 34 :return
+	alFont "",20
+	foreach getUniqueID
+		alColor
+		if getUniqueID(cnt) = uniqueID : alColor 255,0,0, 255
+		alDrawText strf("%d 位", cnt+1),           0, 50*cnt, 100,,2
+		alDrawText strf("%d 行", getScore(cnt)), 150, 50*cnt, 100,,2
+		alDrawText strf("%s", getUserName(cnt)), 300, 50*cnt
+	loop
+	alalRedraw 34
+	alSelectImage 3
+	return
+// スコア配列処理用モジュール
+#module
+#deffunc setScores array uIDs, array uNames, array uScores, str uid, str name, int score
+logmes "score="+score
+	if uScores(0)=0 {
+		uIDs(0) = uid
+		uNames(0) = name
+		uScores(0) = score
+	}
+	flg=0
+	foreach uIDs
+		if uIDs(cnt) = uid {
+			flg = 1
+			if score = -1 : uNames(cnt) = name :break
+			if uScores(cnt) <= score : uScores(cnt) = score : uNames(cnt) = name
+			break
+		}
+	loop
+	if flg = 0  && score ! -1 {
+		index = length(uIDs)
+		uIDs(index) = uid
+		uNames(index) = name
+		uScores(index) = score
+	}
+	return
+#deffunc normalizeScores array uIDs, array uNames, array uScores
+
+	foreach uIDs
+		mae_uIDs(cnt) = uIDs(cnt)
+		mae_uNames(cnt) = uNames(cnt)
+		mae_uScores(cnt) = uScores(cnt)
+	loop
+	sortVal uScores,1
+
+	num = length(uIDs)
+	if num>8 :num=8
+	sdim uIDs,5,1
+	sdim uNames,5,1
+	dim uScores,1
+	repeat num
+		sortget i, cnt
+		uIDs(cnt) = mae_uIDs(i)
+		uNames(cnt) = mae_uNames(i)
+		uScores(cnt) = mae_uScores(i)
+	loop
+	
+	repeat 8-length(uIDs)
+		index = length(uIDs)
+		uIDs(index) = ""
+		uNames(index) = ""
+		uScores(index) = 0
+	loop
+	
+	return
+#global
+// サーバからスコアデータ取得
+//   8位分まで記録
+//   name:    AABBCCDDEEFFGGHH****(20byte) <- A=0～93; 94*94=8836まで
+//   comment: aaaaAAAAbbbbBBBBccccCCCC・・・(64byte) <- aaaa=名前(4byte), AAAA=ユニークID(4byte)
+*GetScoreData
+	gosub *Loading_show
+	
+	if (timer_getTime() - maeTime) < 5000 {
+		wait ( 5000 - ( timer_getTime() - maeTime ) )/10
+	}
+	hsptv_up -1,""				; 情報を更新
+	maeTime = timer_getTime()
+	
+	dim getScore,1
+	sdim getUserName,5,1
+	sdim getUniqueID,5,1
+	lowestScore = 10000 ;
+	
+	rscore_max=-1 :flg=0
+	dataNum=0
+	repeat 29,1
+		hsptv_getrank rscore,ruser,rcomm,cnt	; 情報を取得する
+		if rscore=0 :break
+		dataNum++
+	loop
+	repeat dataNum ; 最新１データだけだと更新タイミングでの抜け落ちが発生するので全部中身見てIDごとにスコア高いのを採用する。
+		cn = dataNum-cnt
+		hsptv_getrank rscore,ruser,rcomm,cn	; 情報を取得する
+		if rscore=0 :break
+		;logmes "sc="+rscore+" un="+ruser+" cm="+rcomm
+		repeat strlen(ruser)/2
+			sc=( peek(ruser,cnt*2)-39 )*88 + peek(ruser,cnt*2+1)-39
+			logmes "sc="+sc
+			un=strmid(rcomm,cnt*8+0,4)
+			ui=strmid(rcomm,cnt*8+4,4)
+			setScores getUniqueID, getUserName, getScore, ui, un, sc
+		loop
+		
+	loop
+	normalizeScores getUniqueID, getUserName, getScore
+
+	repeat 8
+		if lowestScore > getScore(cnt) : lowestScore = getScore(cnt)
+		if getUniqueID(cnt) = uniqueID : myHighScore = getScore(cnt)
+	loop
+
+	gosub *ScoreDraw
+	gosub *Loading_hide
+	
+	return
+// サーバにスコアデータを送信
+*PostScoreData
+	gosub *Loading_show
+	
+	if timer_getTime() - maeTime < 5000 {
+		wait ( 5000 - ( timer_getTime() - maeTime ) )/10
+	}
+
+	postNameString    = "" :repeat 20 :postNameString    += "'" :loop ; <- ここにスコアデータを保存する。
+	postCommentString = "" :repeat 64 :postCommentString += " " :loop ; <- ここにユーザー名、ユニークIDを保存する。
+	repeat 8
+		poke postNameString, cnt*2+0, getScore(cnt)/88 +39
+		poke postNameString, cnt*2+1, getScore(cnt)\88 +39
+		gun = getUserName(cnt)+"    "
+		strrep gun,"&","?"
+		gui = getUniqueID(cnt)+"    "
+		if ( 0x81<=peek(gun,3) && peek(gun,3)<=0x9f )||(0xe0<=peek(gun,3) && peek(gun,3)<=0xef ) :poke gun,3," " ; 2byte文字の切れ端は取り除く
+		poke postCommentString, cnt*8+0, strmid(gun,0,4)
+		poke postCommentString, cnt*8+4, strmid(gui,0,4)
+	loop
+	
+	hsptv_setini postNameString,0			; ユーザー情報(名前)
+	hsptv_setini "",1			; ユーザー情報(キー)
+	hsptv_setini "",2			; ユーザー情報(PROXYアドレス)
+	hsptv_setini "",3			; ユーザー情報(PROXYポート)
+	hsptv_saveini
+	hsptv_up tekitoTime(), postCommentString				; 情報を更新
+	maeTime = timer_getTime()
+
+	gosub *GetScoreData
+	
+	return
+// ユーザー名を更新
+*TOUROKU
+	setScores getUniqueID, getUserName, getScore, uniqueID, username, -1
+	normalizeScores getUniqueID, getUserName, getScore
+	
+	gosub *PostScoreData
+	
+	return
+// ローディング画面を表示
+*Loading_show
+	if alalIsShown(35) :return 
+	alalShow 35
+	timer_repeat 16
+		alSelectImage 36
+		alErase
+		alColor 255,255,255,255
+		da = (timer_cnt*5)\360 : db = (timer_cnt*5+20)\360
+		if (timer_cnt*5+20)\720 >= 360 : db -= 360
+		alDrawArc 5, 5, 30, 30, da, db
+		alalRedraw 36
+		alSelectImage 3
+	timer_loop
+	id_Loading = stat
+	return
+// ローディング画面を非表示
+*Loading_hide
+	alalHide 35
+	timer_kill id_Loading
+	return
+*dummy
+	return
+
+*GAME_GAMEN_SAKUSEI
+//
+//  ゲーム画面作成
+//
+yousi_h = 1024
+yousi_y = 120
+
+// メインウィンドウにオブジェクトをセット：スコア-ランキング用
+gsel 0
+color 38, 38, 38
+pos 530,50
+mes "ユーザーネーム(4byteまで)："
+pos 760,50 : input username, 100 : id_input = stat
+pos 870,50 : button gosub "登録",*TOUROKU : id_button = stat
+SetFocus hwnd
+objenable id_input,0
+objenable id_button,0
+
+// 用紙2枚分のimage
+alCreateImage 1, 800,yousi_h*2
+alColor 255, 255, 255, 255
+alFillRect ,, alGetWidth(),yousi_h-64
+alFillRect ,yousi_h, alGetWidth(),alGetHeight()
+;用紙角の L x4個 x2ページ を描画
+alColor 200, 200, 200, 255
+arr = 50, 80,  80, 80,  80, 50
+alDrawLines arr, 3
+	arr.1 += yousi_h : arr.3 += yousi_h : arr.5 += yousi_h
+	alDrawLines arr, 3
+arr = alGetWidth()-64, 80,  alGetWidth()-80, 80,  alGetWidth()-80, 50
+alDrawLines arr, 3
+	arr.1 += yousi_h : arr.3 += yousi_h : arr.5 += yousi_h
+	alDrawLines arr, 3
+arr = 50, yousi_h-64-80,  80, yousi_h-64-80,  80, yousi_h-64-50
+alDrawLines arr, 3
+	arr.1 += yousi_h : arr.3 += yousi_h : arr.5 += yousi_h
+	alDrawLines arr, 3
+arr = alGetWidth()-64, yousi_h-64-80,  alGetWidth()-80, yousi_h-64-80,  alGetWidth()-80, yousi_h-64-50
+alDrawLines arr, 3
+	arr.1 += yousi_h : arr.3 += yousi_h : arr.5 += yousi_h
+	alDrawLines arr, 3
+alalSetParent 1 ; メインウィンドウにSet
+alalWidth 1, ,,ginfo_sx/2, yousi_y, 5
+
+// 用紙の中身：文字描画用
+alCreateImage 3, alGetWidth(),alGetHeight()
+alFont "", 16 : alColor 170, 170, 170, 255
+alalSetParent 3, 1 ; ID-1（用紙） にSet
+
+
+// ウィンドウ上部：デザイン描画と枠を掴めるように
+alCreateImage 10, ginfo_sx,40
+alColor 43, 87, 154, 255
+alFillRect
+alFont "", 40 : alColor 42, 78, 131, 255
+alDrawText "αeXX$XX&XXξ∞", 0, -2, alGetWidth(), alGetHeight(), 2, 1
+alFont "", 16 : alColor 255, 255, 255, 255
+alDrawText "Floppy ‐ Word", 0, 0, alGetWidth(), alGetHeight(), 1, 1
+alFont "", 20 : alColor 255, 255, 255, 255
+alDrawText "―    □    ×	", 0, 0, alGetWidth()-10, alGetHeight(), 2, 1
+alDrawText "    v", 100, 0, alGetWidth()-100,alGetHeight(), 0, 1
+alColor 85, 121, 175, 255
+alDrawText "　　　　 つ・ Q", 0, 0, alGetWidth(),alGetHeight(), 0, 1
+alalSetParent 10,,,,,*waku ; メインウィンドウにSet [コールバック設定]
+
+// ウィンドウ上部（スコア-ランキング用かさね）
+alCreateImage 31, ginfo_sx,40
+alColor 255, 255, 255, 255
+alFillRect
+alFont "", 40 : alColor 212, 212, 212, 255
+alDrawText "αeXX$XX&XXξ∞", 0, -2, alGetWidth(), alGetHeight(), 2, 1
+alFont "", 16 : alColor 38, 38, 38, 255
+alDrawText "Floppy ‐ Word", 0, 0, alGetWidth(), alGetHeight(), 1, 1
+alFont "", 20 : alColor 38, 38, 38, 255
+alDrawText "―    □    ×	", 0, 0, alGetWidth()-10, alGetHeight(), 2, 1
+alalSetParent 31,10, 1 ; ID-10(ウィンドウ上部) にSet [非表示]
+
+// ウィンドウ閉じる用ボタン
+alCreateImage 11, 50,40
+alColor 255, 64,64, 255
+alFillRect
+alFont "", 20 : alColor 255, 255, 255, 255
+alDrawText "×", 0, 0, alGetWidth()-10, alGetHeight(), 2, 1
+alalSetParent 11,10, ,ginfo_sx-alGetWidth(),0, *batu ; ID-10(ウィンドウ上部) にSet [コールバック設定]
+alalAlpha 11,1 ; 極薄透過：マウスを検知できるように
+
+// ウィンドウ上部（2段目）
+alCreateImage 12, ginfo_sx,40
+alColor 43, 87, 154, 255
+alFillRect
+alFont "", 14 : alColor 255, 255, 255, 255
+alDrawText "　　ファイル　 　ホーム　 　挿入　 　描画　 　デザイン　 　レイアウト　 　参考資料　 　差し込み文書　 　校閲　 　表示　 　ヘルプ", 0, 0, alGetWidth(), alGetHeight(), 0, 1
+alalSetParent 12,,,,39 ; メインウィンドウにSet
+
+// ステータスバー
+alCreateImage 20, ginfo_sx,30
+alColor 230, 230, 230, 255
+alFillRect 0,0, ginfo_sx,30
+alFont "", 12 : alColor 64, 64, 94, 255
+alDrawText "－ -----|----- ＋  100%", 0, 0, ginfo_sx-5, 30, 2, 1
+alalSetParent 20 ,,,,ginfo_sy-30 ; メインウィンドウにSet
+
+// ステータスバー（左側）：文字描画用
+alCreateImage 21, ginfo_sx,30
+alFont "", 12 : alColor 64, 64, 94, 255
+alDrawText "1 / "+zenpage+" ページ　行：0", 10, 0, ginfo_sx, 30, 0, 1
+alalSetParent 21 ,20 ; ID-20(ステータスバー) にSet
+
+// 左に行っちゃう表示
+alCreateImage 22, 500,210
+alColor 255, 255, 0, 200
+arr = 75,45, 160,55, 150,15, 230,50, 265,20, 295,40, 370,20, 350,65, 430,55, 390,80, 490,100, 395,115, 415,135, 380,150, 425,190, 340,165, 340,195, 285,170, 265,200, 235,175, 205,195, 185,180, 120,200, 130,165, 60,150, 105,130, 50,95, 125,90
+alFillPoly arr, 28
+alFont "", 24, 1 : alColor 255, 0, 0, 255
+alDrawText "ああっ！！\nBackSpace押しっぱで\n左に行っちゃう！！", 0, 0, alGetWidth()+10, alGetHeight(), 1, 1
+alFont "", 12
+alDrawText "そうはならんやろ・・・", 0, 0, alGetWidth()-120, alGetHeight()-50, 2, 2
+alalSetParent 22,,1,450,-10 ; メインウィンドウにSet [非表示]
+
+//「ファイル」ボタン：スコア移動用
+alCreateImage 30, 80,40
+alColor 18, 64, 120, 255
+alFillRect
+alFont "", 14 : alColor 255, 255, 255, 255
+alDrawText "　　ファイル", 0, 0, alGetWidth(), alGetHeight(), 0, 1
+alalSetParent 30,,,,39, *fairu ; メインウィンドウにSet [コールバック設定]
+alalAlpha 30,1 ; 極薄透過：マウスを検知できるように
+
+
+
+// フロッピー（主人公）
+alCreateImage 2, 26,32 ; Artlet2D仮想イメージ
+alColor 0, 0, 0, 255
+alFillRect 0,1,26,30
+alColor 255,255,255, 255
+alFillRect 4,4,18,12
+alFillRect 6,20,11,7
+alColor 0, 0, 0, 255
+alFillRect 7,21,5,6
+alEraserBrush
+alFillRect 0,1,1,1
+alFillRect alGetWidth()-1,1,1,1
+alFillRect alGetWidth()-1,alGetHeight()-2,1,1
+alFillRect 0,alGetHeight()-2,1,1
+alalSetParent 2,,, 15, 5, *floppy
+
+// 用紙内「スペース」コピー元バッファ
+alCreateImage 23, 640,32 ; ・・・
+alColor 255, 255, 255, 255
+alFillRect
+alColor 64, 64, 94, 100
+repeat 640/6
+	alFillRect 6*cnt+2,15, 2, 2
+loop
+
+// 用紙内「■壁」コピー元バッファ
+alCreateImage 24, 640,32 ; ■■■
+alColor 255, 255, 255, 255
+alFillRect
+alColor
+repeat 640/16
+	alFillRect 16*cnt+2,9, 12, 12
+loop
+
+// 用紙内「改行」コピー元バッファ
+alCreateImage 4, 10,32;10
+alColor 64,64, 64, 255
+arr = 10, 0+11,  10, 5+11,  0, 5+11
+alDrawLines arr, 3
+arr = 4, 2+11,  0, 5+11,  4, 8+11
+alDrawLines arr, 3
+
+
+// スコア-ランキング ウィンドウ
+alCreateImage 32, ginfo_sx,ginfo_sy
+alColor 243, 243, 243, 255
+alFillRect 0,80,
+alColor 43, 87, 154, 255
+alFillRect 0,0,150,ginfo_sy
+alColor 255,255,255,128
+alFillRect 0,80,150,40
+alColor 0,32,80,255
+alFillRect 1,81,148,38
+; 文字
+alFont "", 20 : alColor 38,38,38,255
+subidtxt=""
+if startup_code = "54c08342df34b6317837d59b9a1a79d60010d3" :subidtxt="（テスト用サーバ）"
+alDrawText "スコア - ランキング"+subidtxt, 180, 40, 500, 40, 0, 1
+alFont "", 26 : alColor 255, 255, 255, 255
+alDrawText "←", 10, 40, 130, 40, 0, 1
+alFont "", 14 : alColor 255, 255, 255, 255
+alDrawText "凸　ランキング", 15,  80, 130, 40, 0, 1
+alDrawText "□　新規",		 15, 120, 130, 40, 0, 1
+alDrawText "ロ　開く",		 15, 160, 130, 40, 0, 1
+alDrawText "情報",		 35, 220, 115, 40, 0, 1
+alDrawText "上書き保存", 35, 260, 115, 40, 0, 1
+alDrawText "名前を付けて保存", 35, 300, 115, 40, 0, 1
+alDrawText "履歴",		 35, 340, 115, 40, 0, 1
+alDrawText "印刷",		 35, 380, 115, 40, 0, 1
+alDrawText "共有",		 35, 420, 115, 40, 0, 1
+alDrawText "エクスポート", 35, 460, 110, 40, 0, 1
+alDrawText "閉じる",	 35, 500, 110, 40, 0, 1
+alDrawText "アカウント",	 35, ginfo_sy-140, 110, 40, 0, 1
+alDrawText "フィードバック", 35, ginfo_sy-100, 110, 40, 0, 1
+alDrawText "オプション",	 35, ginfo_sy-60, 110, 40, 0, 1
+; line
+alColor 125, 163, 198, 255
+alDrawLine 15,210, 135,210
+alDrawLine 15,ginfo_sy-150, 135,ginfo_sy-150
+alalSetParent 32,, 0 ,-200,0, *dummy ; メインウィンドウにSet [ダミーコールバック設定]
+// ★ 注意 ★     ↑
+// Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから動作がおかしくなってしまいました。
+// 既に作った非表示のアルファレイヤー子ウィンドウ[子レイヤー]に新規のアルファレイヤー子ウィンドウ[孫レイヤー]を貼り付けた場合、普通は[孫レイヤー]は見えないはずなのですが、[孫レイヤー]だけ表示されてしまうというバグ(?)が発生しています。
+// 一度、[子レイヤー]を 表示状態のまま 作り、[孫レイヤー]を全て貼り付けた後に alalHide で[子レイヤー]を 非表示にする という処置を行ってください。
+// [子レイヤー] : 32
+// [孫レイヤー] : 33,34
+
+// スコアボード：スコア-ランキング ウィンドウ内（中身は表示の時に書く）
+alCreateImage 34, ginfo_sx-180,ginfo_sy-120
+alalSetParent 34,32, ,180,120 ; ID-32(スコアランキング) にSet
+
+// スコアから戻る用ボタン
+alCreateImage 33, 150,40
+alColor 18, 64, 120, 255
+alFillRect
+alFont "", 26 : alColor 255, 255, 255, 255
+alDrawText "←", 10, 0, alGetWidth()-10, alGetHeight(), 0, 1
+alalSetParent 33,32, ,0,40, *fairu_back ; ID-32(スコアランキング) にSet
+
+alalHide 32
+// ★ 注意 ★ (詳細：alalSetParent 32 付近のコメント参照。)
+// [子レイヤー] : 32
+// [孫レイヤー] : 33,34
+
+
+// 爆発エフェクト用バッファ
+buffer 1 ; 読み込み用
+picload dir_tv+"baku.bmp"
+buffer 2,96*8*2,96 ; 背景色等調整用
+color 255,0,0 :boxf
+gmode 5,,,255
+pos 0,   0 :gcopy 1,0,0,96*8,96
+pos 96*8,0 :gcopy 1,0,96,96*8,96
+alCreateImage 25,96*8*2,96 ; コピー元バッファ
+alCopyModeColorKey 0x000000, 0xff2222
+alCopyScreenToImage 2,25,0,0,96*8*2,96,0,0
+alResetCopyMode
+// 爆発エフェクト表示用
+alCreateImage 26,96,96
+gsel 0
+alalSetParent 26 ; メインウィンドウにSet
+
+//爆発エフェクト用 SE
+mmload dir_tv+"se_bom.wav",0
+
+//loading画面
+alCreateImage 35, 200,100
+alColor 18, 64, 120, 128
+alFillRect
+alFont "", 14 : alColor 255, 255, 255, 255
+alDrawText "スコア - ランキング\nサーバ接続中...", 60, 0, alGetWidth()-60, alGetHeight(), 0, 1
+alalSetParent 35,,1,ginfo_sx/2-100,ginfo_sy/2-50 ; メインウィンドウにSet
+//くるくる：loading内
+alCreateImage 36, 40,40
+alColor 255,255,255,255
+alDrawArc 5, 5, 30, 30, 0, 360
+
+alalSetParent 36,35,,15,30 ; ID-35(loading画面)にSet
+
+
+alSelectImage 3
+return
