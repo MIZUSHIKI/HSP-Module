@@ -2,26 +2,14 @@
 #packopt hide 1
 #pack "baku.bmp"   ; hsptv素材：爆発画像
 #pack "se_bom.wav" ; hsptv素材：爆発SE
+;//実行ファイル作成時は hsptvapp.dll を同梱してください
+;#ifdef _debug
+;	exist dir_cur+"\\hsptvapp.dll" : if strsize=-1 : bcopy dir_exe+"\\hsptvapp.dll", dir_cur+"\\hsptvapp.dll"
+;#endif
 #uselib "USER32.DLL"
 #func SetFocus "SetFocus" int
 #include "hsptvapp.as"
 
-#module ; 文字描画命令モジュール
-#deffunc fwTextMes str _txt, int wt
-	txt = _txt
-	repeat strlen(txt)/2+2
-		alEraserBrush : alFillRect 0, 0, ,80 : alColor 170, 170, 170, 255 : alDrawText strmid(txt,0,cnt*2) ,100,30 : alalRedraw 3
-		await wt
-	loop
-	return
-#deffunc fwTextDel int wt
-	if wt=-1 : alEraserBrush : alFillRect 0, 0, ,80 :return
-	repeat strlen(txt)/2+2
-		alEraserBrush : alFillRect 0, 0, ,80 : alColor 170, 170, 170, 255 : alDrawText strmid(txt,0,strlen(txt)-cnt*2) ,100,30 : alalRedraw 3
-		await wt
-	loop
-	return
-#global
 #define _0stop_(%1) *@ :wait 1 :if %1=0{ goto *@b }
 #define global ctype tekitoTime ((gettime(0)-2020)*12 *31*24*60*60 + gettime(1)*31 *24*60*60 + gettime(3)*24 *60*60 + gettime(4)*60 *60 + gettime(5)*60 + gettime(6))
 
@@ -36,9 +24,9 @@ title "Floppy-Word"
 color 200, 200, 200 : boxf 0,79
 
 // 設定読み込み
-exist dir_exe+"\\FPWD.ini"
+exist dir_exe+"\\FloppyWord.ini"
 if strsize!-1 {
-	notesel iniText : noteload dir_exe+"\\FPWD.ini"
+	notesel iniText : noteload dir_exe+"\\FloppyWord.ini"
 	noteget uniqueID,0
 	noteget username,1
 	noteget _myHighScore,2
@@ -302,6 +290,23 @@ if myHighScore < sougyousu {
 goto *GAME_RESTART
 
 stop
+
+#module ; 文字描画命令モジュール
+#deffunc fwTextMes str _txt, int wt
+	txt = _txt
+	repeat strlen(txt)/2+2
+		alEraserBrush : alFillRect 0, 0, ,80 : alColor 170, 170, 170, 255 : alDrawText strmid(txt,0,cnt*2) ,100,30 : alalRedraw 3
+		await wt
+	loop
+	return
+#deffunc fwTextDel int wt
+	if wt=-1 : alEraserBrush : alFillRect 0, 0, ,80 :return
+	repeat strlen(txt)/2+2
+		alEraserBrush : alFillRect 0, 0, ,80 : alColor 170, 170, 170, 255 : alDrawText strmid(txt,0,strlen(txt)-cnt*2) ,100,30 : alalRedraw 3
+		await wt
+	loop
+	return
+#global
 
 *ONKEY_TAB
 	if scoreMiteru : return
