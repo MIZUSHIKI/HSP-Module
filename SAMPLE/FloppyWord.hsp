@@ -24,9 +24,9 @@ title "Floppy-Word"
 color 200, 200, 200 : boxf 0,79
 
 // ê›íËì«Ç›çûÇ›
-exist dir_exe+"\\FloppyWord.ini"
+exist "FloppyWord.ini"
 if strsize!-1 {
-	notesel iniText : noteload dir_exe+"\\FloppyWord.ini"
+	notesel iniText : noteload "FloppyWord.ini"
 	noteget uniqueID,0
 	noteget username,1
 	noteget _myHighScore,2
@@ -371,7 +371,7 @@ stop
 	iniText += ""+username+"\n"
 	iniText += ""+myHighScore+"\n"
 	notesel iniText
-	notesave dir_exe+"\\FPWD.ini"
+	notesave "FloppyWord.ini"
 	end
 	end
 	end
