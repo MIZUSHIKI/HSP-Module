@@ -12,13 +12,13 @@
 #endif
 
 //
-//	mod_TimerRepeat.hsp - ver.2.2									by MIZUSHIKI
+//	mod_TimerRepeat.hsp - ver.2.3									by MIZUSHIKI
 //
 #ifndef timer_repeat
 
 #define global timer_repeat(%1=10,%2=-1,%3=0,%4=0) %t__timer if pChk@modTimerRepeat("%1"){dup _arA@modTimerRepeat,%1}else{vaA@modTimerRepeat=%1:dup _arA@modTimerRepeat,vaA@modTimerRepeat}:_setTimerLabel@modTimerRepeat %2,%3,*%i,%4 :goto *%i :*%p1 :uniq_start:if _dupdim_@modTimerRepeat>-2{ if _dupdim_@modTimerRepeat>=0{dim uniq(timer_intervals),_dupdim_@modTimerRepeat}: dup _ari@modTimerRepeat,uniq(timer_intervals):return} :dup timer_intervals@modTimerRepeat,uniq(timer_intervals):if(_TimerRepeat_deinit_@modTimerRepeat<=1) {
 #define global timer_init %t__timer *%o : if(_TimerRepeat_init_@modTimerRepeat>=2) {
-#define global _init_end %t__timer if(_TimerRepeat_init_@modTimerRepeat==3) {goto *%i} }
+#define global _init_end %t__timer if(_TimerRepeat_init_@modTimerRepeat==3) {_TimerRepeat_init_@modTimerRepeat=-1:goto *%i} }
 #define global timer_deinit } : if(_TimerRepeat_deinit_@modTimerRepeat>=1) {
 #define global _deinit_end } : if(_TimerRepeat_deinit_@modTimerRepeat<=1) {
 #define global timer_loop %t__timer } :uniq_end :return :*%o :_get_index@modTimerRepeat *%o
@@ -132,14 +132,14 @@
 	_TimerRepeat_deinit_=0
 	if nums(__timer__id__) != -1 {
 		if cnts(__timer__id__)-fcnts(__timer__id__) >= nums(__timer__id__)-1 {
-			_TimerRepeat_deinit_=1
 			if cnts(__timer__id__)-fcnts(__timer__id__) >= nums(__timer__id__) :return //‚à‚µÅŒã’´‚¦‚Ä‚àŸ‚ª—ˆ‚½‚Æ‚«~‚ß‚éB
+			_TimerRepeat_deinit_=1
 		}
 	}
 	if cnts(__timer__id__) == fcnts(__timer__id__) :_TimerRepeat_init_=1 :else :_TimerRepeat_init_=0
 	_TimerRepeat_cnt_ = cnts(__timer__id__) : cnts(__timer__id__)++
-	gosub labels(__timer__id__)
 	if _TimerRepeat_deinit_=1 :ing(__timer__id__)=0
+	gosub labels(__timer__id__)
 	return
 	
 #deffunc _killTimerLabel_Label@modTimerRepeat label _label
@@ -163,12 +163,12 @@
 	__timer__id__=index
 	_TimerRepeat_deinit_=2
 	_TimerRepeat_cnt_ = cnts(index)
-	gosub labels(index)
 	ing(index) = 0
+	gosub labels(index)
 	return
 #deffunc _AllKillTimerLabel onexit
 	foreach ing
-		ing(index) = 0
+		ing(cnt) = 0
 	loop
 	return
 
@@ -359,7 +359,7 @@ _init_@modTimerRepeat
 
 „ª„ª„ª„ª„ª„ª„¶„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 ƒ‚ƒWƒ…[ƒ‹–¼„ mod_TimerRepeat.hsp
-  ƒo[ƒWƒ‡ƒ“„ 2.2
+  ƒo[ƒWƒ‡ƒ“„ 2.3
         ìÒ„ MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
             „                                   Copyright(C) 2019-2021 MIZUSHIKI
 „ª„ª„ª„ª„ª„ª„¸„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
@@ -445,6 +445,13 @@ timer_stop
 
 ¡ —š—ğ
 PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+ version 2.3   2021/ 7/18
+ PPPPPPPPPPPP
+@Etimer_repeat‚ª‚¢‚­‚Â‚à˜A‘±‚µ‚ÄŒÄ‚Î‚ê‚Ä‚¢‚é’†‚ÅV‹K‚Étimer_init: ‚ğg—p‚µ‚½‚Æ
+@@‚«‚ÉŠù‚É‰Ò“­‚µ‚Ä‚¢‚éƒ^ƒCƒ}[‚É‚àŠÖ‚í‚ç‚¸‰ü‚ß‚Ätimer_init: “à‚ªÀs‚³‚ê‚Ä‚µ‚Ü
+@@‚¤•s‹ï‡‚ğC³B
+@Etimer_deinit‚Ì’†‚Åtimer_repeat‚ğ‹Lq‚·‚é‚Ætimer_kill‚È‚Ç‚ÅI—¹‚³‚¹‚½ƒ^ƒCƒ}[
+@@‚É‚àŠÖ‚í‚ç‚¸I—¹‚ª–³‚©‚Á‚½‚±‚Æ‚É‚³‚ê‚Ä‘±‚¢‚Ä‚µ‚Ü‚¤•s‹ï‡‚ğC³B
 
  version 2.2   2021/ 6/25
  PPPPPPPPPPPP
@@ -489,7 +496,6 @@ timer_stop
 „³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³„³
 
 // mod_TimerRepeat.hs //
-
 ;
 ;	HSP help manager—p HELPƒ\[ƒXƒtƒ@ƒCƒ‹
 ;	(æ“ª‚ªu;v‚Ìs‚ÍƒRƒƒ“ƒg‚Æ‚µ‚Äˆ—‚³‚ê‚Ü‚·)
@@ -498,13 +504,13 @@ timer_stop
 %type
 Šg’£–½—ß
 %ver
-2.2
+2.3
 %note
 mod_TimerRepeat.hsp‚ğƒCƒ“ƒNƒ‹[ƒh‚·‚é‚±‚ÆB
 %dll
 mod_TimerRepeat
 %date
-2021/6/25
+2021/7/18
 %author
 MIZUSHIKI
 %url
