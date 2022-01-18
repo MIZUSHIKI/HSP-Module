@@ -7,8 +7,11 @@
 //   2. buttonやboxf等のオブジェクトに対し、Ctrlを押しながらマウスの左ドラッグで
 //      位置を変更、右ドラッグでサイズを変更できるようになる。
 //   3. リストからスクリプトを書き換えたいオブジェクトを選択し「スクリプト変更」
-//      ボタンを押す。(エディタで開いてない場合は「ファイルを開く」になる。)
-//   4. スクリプトエディタ上の文字が書き換えられる。
+//      ボタンを押すと、スクリプトエディタ上の文字が書き換えられる。
+//      (エディタで開いてない場合は「ファイルを開く」ボタンになる。)
+//   
+//   ※ オブジェクト操作時にあわせてShiftも押すと移動の縦横制限をしたり、サイズ
+//      を縦横同時に合わせることができる。
 //------------------------------------------------------------------------------
 #ifdef _debug
 #include "hsedsdk.as"
@@ -60,7 +63,7 @@ dirCurrent@ObjPosModDataClass = dir_cur
 // atoScript    :変更後のスクリプト(変更必要箇所抜き出し)
 // fullScript   :現在のスクリプト全文(サイズ肥大化を防ぐため重複して読み込まないようにする)
 // isHsptmp     :hspFileがメインスクリプトかどうか
-// fixedScript  :スクリプトを修正済みかのフラグ
+// hasBeenFixed :スクリプトが修正済みかのフラグ
 // opt1～       ;上記以外でオブジェクトに必要なデータを保存(objTypeによって変数の型が異なる)
 //------------------------------------------------------------------------------
 #module ObjPosModDataClass \
@@ -85,7 +88,7 @@ dirCurrent@ObjPosModDataClass = dir_cur
 	maeScript, atoScript, \
 	fullScript, \
 	isHsptmp, \
-	fixedScript, \
+	hasBeenFixed, \
 	opt1, opt2, opt3, opt4, opt5, opt6, opt7
 
 //--------------------------------------
@@ -140,7 +143,7 @@ dirCurrent@ObjPosModDataClass = dir_cur
 	atoScript = ""
 	fullScript = ""
 	isHsptmp = 0
-	fixedScript = 0
+	hasBeenFixed = 0
 	//スクリプト全文取得登録(サイズでかいから登録は最初の１つだけ)
 	if vartype( hsptmp_ ) = 4 {
 		hsptmp_ = ""
@@ -156,27 +159,28 @@ dirCurrent@ObjPosModDataClass = dir_cur
 		
 		//ついでに初期化(Update_MaeAtoScript_で使う配列の初期化をしたい)
 		funcnameChangesCurrent_       = "mes", "line", "chkbox", "mesbox", "input", "combox", "listbox", "winobj", "button", "pos"
-		scopeBreakerReg_before_       = "(\n|:|\\{|\\s)return(\n|:|\\}|\\s)", "(\n|:|\\{|\\s)stop(\n|:|\\}|\\s)", "(?:\n|:|\\{|\\s)screen\\s+", "(?:\n|:|\\{|\\s)bgscr\\s+", "(?:\n|:|\\{|\\s)buffer\\s+", "(?:\n|:|\\{|\\s)gsel\\s+", "\\}", "\\*[A-Za-z_]\w*?(\n|:|\\}|\\s)"
-		scopeBreakerReg_after_pos_    = "(\n|:|\\{|\\s)return(\n|:|\\}|\\s)", "(\n|:|\\{|\\s)stop(\n|:|\\}|\\s)", "(?:\n|:|\\{|\\s)screen\\s+", "(?:\n|:|\\{|\\s)bgscr\\s+", "(?:\n|:|\\{|\\s)buffer\\s+", "(?:\n|:|\\{|\\s)gsel\\s+", "(?:\n|:|\\{|\\s)line\\s+.*?,.*?,.+?,.+?"
-		scopeBreakerReg_after_size_   = "(\n|:|\\{|\\s)return(\n|:|\\}|\\s)", "(\n|:|\\{|\\s)stop(\n|:|\\}|\\s)", "(?:\n|:|\\{|\\s)screen\\s+", "(?:\n|:|\\{|\\s)bgscr\\s+", "(?:\n|:|\\{|\\s)buffer\\s+", "(?:\n|:|\\{|\\s)gsel\\s+"
+		scopeBreakerReg_before_       = "(\n|:|\\{|[ \t])return(\n|:|\\}|[ \t])", "(\n|:|\\{|[ \t])stop(\n|:|\\}|[ \t])", "(?:\n|:|\\{|[ \t])screen[ \t]+", "(?:\n|:|\\{|[ \t])bgscr[ \t]+", "(?:\n|:|\\{|[ \t])buffer[ \t]+", "(?:\n|:|\\{|[ \t])gsel[ \t]+", "\\}", "\\*[A-Za-z_]\w*?(\n|:|\\}|[ \t])"
+		scopeBreakerReg_after_pos_    = "(\n|:|\\{|[ \t])return(\n|:|\\}|[ \t])", "(\n|:|\\{|[ \t])stop(\n|:|\\}|[ \t])", "(?:\n|:|\\{|[ \t])screen[ \t]+", "(?:\n|:|\\{|[ \t])bgscr[ \t]+", "(?:\n|:|\\{|[ \t])buffer[ \t]+", "(?:\n|:|\\{|[ \t])gsel[ \t]+", "(?:\n|:|\\{|[ \t])line[ \t]+.*?,.*?,.+?,.+?"
+		scopeBreakerReg_after_size_   = "(\n|:|\\{|[ \t])return(\n|:|\\}|[ \t])", "(\n|:|\\{|[ \t])stop(\n|:|\\}|[ \t])", "(?:\n|:|\\{|[ \t])screen[ \t]+", "(?:\n|:|\\{|[ \t])bgscr[ \t]+", "(?:\n|:|\\{|[ \t])buffer[ \t]+", "(?:\n|:|\\{|[ \t])gsel[ \t]+"
 		funcnameAffectedSize_font_    = "mes"
 		funcnameAffectedSize_objsize_ = "chkbox", "mesbox", "input", "combox", "listbox", "winobj", "button"
 	}
 	if hspFile ! "" {
-		if hspFile = "???" || dirCurrent+"\\"+hspFile = hsptmp_filename_ {
+		hspFilePath = hspFile : if strmid( hspFilePath, 1, 2 ) ! ":\\" : hspFilePath = dirCurrent+"\\"+hspFilePath
+		if hspFile = "???" || hspFilePath = hsptmp_filename_ {
 			isHsptmp = 1
 		}else {
 			flg = 1
 			foreach hspFiles_
-				if hspFiles_(cnt) = dirCurrent+"\\"+hspFile : flg = 0 : break ;ロードしたことあるかリストで確認
+				if hspFiles_(cnt) = hspFilePath : flg = 0 : break ;ロードしたことあるかリストで確認
 			loop
 			if flg = 1 {
-				exist dirCurrent+"\\"+hspFile
+				exist hspFilePath
 				if strsize ! -1 {
 					sdim fullScript, strsize
-					bload dirCurrent+"\\"+hspFile, fullScript, strsize
+					bload hspFilePath, fullScript, strsize
 				}
-				hspFiles_( length.hspFiles_ ) = dirCurrent+"\\"+hspFile ;ロードしたことあるリストに追加
+				hspFiles_( length.hspFiles_ ) = hspFilePath ;ロードしたことあるリストに追加
 			}
 		}
 	}
@@ -280,10 +284,10 @@ dirCurrent@ObjPosModDataClass = dir_cur
 	fullScript = p1 : return
 #modcfunc local isHsptmp_
 	return isHsptmp
-#modcfunc local fixedScript_
-	return fixedScript
-#modfunc local Set_fixedScript_ int p1
-	fixedScript = p1 : return
+#modcfunc local hasBeenFixed_
+	return hasBeenFixed
+#modfunc local Set_hasBeenFixed_ int p1
+	hasBeenFixed = p1 : return
 
 //--------------------------------------
 // 特殊Getter (どこかにデータがあるからそれを探して渡す。データ重複のサイズ肥大化を防ぐ為。)
@@ -304,7 +308,8 @@ dirCurrent@ObjPosModDataClass = dir_cur
 		loop
 		if cn = -1 : return ""
 	}
-	if NeedReload_fullScript( hspFile_( mod.cn ) ) : _Set_fullScript_ mod.cn, HSED_GetScript( dirCurrent+"\\"+hspFile_( mod.cn ) ) ;エディタからスクリプト更新
+	hspFilePath = hspFile_( mod.cn ) : if strmid( hspFilePath, 1, 2 ) ! ":\\" : hspFilePath = dirCurrent+"\\"+hspFilePath
+	if NeedReload_fullScript( hspFilePath ) : _Set_fullScript_ mod.cn, HSED_GetScript( hspFilePath ) ;エディタからスクリプト更新
 	return _fullScript_( mod.cn )
 //--------------------------------------
 // スクリプトエディタ書き込み時はモード変更する(fullScript_取得の際スクリプトを再読み込み)
@@ -414,12 +419,14 @@ dirCurrent@ObjPosModDataClass = dir_cur
 		if modID_(mod.cnt) = id : ret = cnt : break
 	loop
 	return ret
+
 //--------------------------------------
 // スクリプトエディタでファイルを開いているか
 //--------------------------------------
 #modcfunc local IsOpenedHspFile_
 	if isHsptmp_( thismod ) = 1 : return 1
-	return HSED_IsOpenedFile( dirCurrent+"\\"+hspFile_( thismod ) )
+	hspFilePath = hspFile_( thismod ) : if strmid( hspFilePath, 1, 2 ) ! ":\\" : hspFilePath = dirCurrent+"\\"+hspFilePath
+	return HSED_IsOpenedFile( hspFilePath )
 
 //--------------------------------------
 // 内部データを使ってmaeScript,atoScriptを更新 - Update_MaeAtoScript_@ObjPosModDataClass objData,cnt って書いてもらう(ドットでなくカンマ)
@@ -430,7 +437,7 @@ dirCurrent@ObjPosModDataClass = dir_cur
 local result, \
 local _result
 
-	if fixedScript_( mod.id ) ! 0 : return ;スクリプト書き換え済みだったらそれ以上変更できないようにする
+	if hasBeenFixed_( mod.id ) ! 0 : return ;スクリプト書き換え済みだったらそれ以上変更できないようにする
 
 	//--------------------------------------
 	// 処理配列の初期化(オブジェクトの位置/サイズを変更したときにどういう風にスクリプトを変更していけば良いかの処理を入れる配列)
@@ -450,7 +457,7 @@ local _result
 	
 	fullScript_buf = fullScript_( mod,id )
 	if fullScript_buf = "" : return ;エディタに書き込み時、最新スクリプトを取得しに行くが問題があった場合空欄が返る -> 処理中止
-	;objTypeの命令頭とその行頭までのindexを取得
+	;objTypeの命令頭までのindexとその行頭までのindexを取得
 	GetIndex_toFuncAndLineHead index_toFunc, index_lineHead, fullScript_buf, hspLine_(mod.id), objType_(mod.id)
 	if index_toFunc = -1 :return
 	
@@ -458,12 +465,12 @@ local _result
 		case "mes"
 			//------------------------------------------------------------------------------
 			// pos : font     
-			//             ← mesと一番近いposとの間に邪魔な命令がなければ、そのposのパラメータを変化させれば良い。
-			// (input)     ← 仮にカレントポジションが変わる命令が間にあったら、適切なposがないのでmes命令直前にposを加える必要がある。
+			//             ← mesと一番近いposとの間に邪魔な命令がなければ、このposのパラメータを変化させれば良い。
+			// (input)     ← 仮にカレントポジションが変わる命令が間にあったら、適切なposがないのでmes命令直前にposを書き加える必要がある。
 			// mes            
-			//             ← mesの次のカレントポジションが関わる命令までの間にposがあれば、mesの位置をいじっても、後ろの命令に影響を与えない。つまりmes命令直後にカレントポジションを戻す処理を加える必要はない。
-			// (stop)         ┌→ 但し、(button)との間に仮に(stop)などのカレントポジションのスコープ(関わり)が切れる記述があった場合(このstopがbuttonの手前にあった場合)、posを加えるのは冗長になるため必要ない。
-			// (button)    ← 仮にカレントポジションが関わる命令があったら、mesのposだけ変えると後ろが全てズレてしまうので、mes命令直後にカレントポジションを戻す処理(pos)を加える必要がある。
+			//             ← mesの次のカレントポジションが関わる命令までの間にposがあれば、mesの位置をいじっても後ろの命令に影響を与えない。つまりmes命令直後にカレントポジションを戻す処理を書き加える必要はない。
+			// (stop)         ┌→ 但し、(button)との間に仮に(stop)などのカレントポジションのスコープ(関わり)が切れる記述があった場合(このstopがbuttonの手前にあった場合)、posを書き加えるのは冗長になるため必要ない。
+			// (button)    ← 仮にカレントポジションに関わる命令があったら、mesのposだけ変えると後ろが全てズレてしまうので、mes命令直後にカレントポジションを戻す処理(pos)を書き加える必要がある。
 			// pos            
 			//             ※ これのfont版や、他のobjTypeのpos,objsizeも調査して、それぞれ処理方法を決定する。(boxf等、命令によってはパラメータに組み込まれたり、カレントが変更されなかったりとこれらの調査がいらない場合もある。)
 			//------------------------------------------------------------------------------
@@ -472,7 +479,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -489,12 +496,12 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(mes\\s+.*?,?.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(mes[ \t]+.*?,?.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
@@ -502,7 +509,7 @@ local _result
 			//font調査
 			if opt4_( mod.id ) ! opt5_( mod.id ) {
 				//index_toFunc前のfont調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)font\\s+.*?,\\s*)("+opt4_(mod.id)+")(?:\\s*\\,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_font_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])font[ \t]+.*?,[ \t]*)("+opt4_(mod.id)+")[ \t]*(?:,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_font_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -525,10 +532,10 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのfont調査
-				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))font\\s+", funcnameAffectedSize_font_, scopeBreakerReg_after_size_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))font[ \t]+", funcnameAffectedSize_font_, scopeBreakerReg_after_size_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(mes\\s+.*?,?.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(mes[ \t]+.*?,?.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
 					syori_write( syori_count ) = " : font \""+opt3_( mod.id )+"\", "+opt4_( mod.id )
 					if opt6_( mod.id ) ! 0 : syori_write( syori_count ) += ", "+opt6_( mod.id )
@@ -547,7 +554,7 @@ local _result
 			//--------------------------------------
 			script_buf = strmid( fullScript_buf, index_toFunc, INT_MAX )
 			//オブジェクト調査
-			matches result, script_buf, "^(boxf\\s+)(.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+			matches result, script_buf, "^(boxf[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
 			if stat = 0 : swbreak
 			syori_line( syori_count ) = hspLine_(mod.id)
 			syori_index_lineHead( syori_count ) = index_lineHead
@@ -563,43 +570,58 @@ local _result
 			//--------------------------------------
 			script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX )
 			//index_toFunc後ろのpos調査
-			if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 				syori_line( syori_count ) = hspLine_(mod.id)
 				syori_index_lineHead( syori_count ) = index_lineHead
-				syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(line\\s*.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+				syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(line[ \t]*.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 				syori_delete_len( syori_count ) = 0
-				syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+				syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 				syori_count++
 			}
 			//オブジェクト調査(pos,size)
-			matches result, script_buf_after, "^(line\\s*)(.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
-			if stat = 0 : swbreak
+			matches result, script_buf_after, "^(line)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;パラメータが全省略されている
+			_result = ""
+			if stat = 0 {
+				matches result, script_buf_after, "^(line[ \t]*)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+				if stat = 0 : swbreak
+				_result = result(0,2)
+			}
 			syori_line( syori_count ) = hspLine_(mod.id)
 			syori_index_lineHead( syori_count ) = index_lineHead
 			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1)
-			syori_delete_len( syori_count ) = strlen.result(0,2)
+			syori_delete_len( syori_count ) = strlen._result
+			write_atama = "" : if result(0,1) = "line" : write_atama = " " ;「line」だけでパラメータ全省略のときもある。新たに書き足されるパラメータの間に空白を入れる。
 			switch opt3_( mod.id )
-				case 0 : syori_write( syori_count ) = ""+( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id)                    )+", "+( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) ) : swbreak
-				case 1 : syori_write( syori_count ) = ""+( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) )+", "+( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id)                    ) : swbreak
-				case 2 : syori_write( syori_count ) = ""+( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) )+", "+( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id)                    ) : swbreak
-				default: syori_write( syori_count ) = ""+( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id)                    )+", "+( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) ) : swbreak
+				case 0 : syori_write( syori_count ) = write_atama + ( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id)                    )+", "+( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) ) : swbreak
+				case 1 : syori_write( syori_count ) = write_atama + ( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) )+", "+( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id)                    ) : swbreak
+				case 2 : syori_write( syori_count ) = write_atama + ( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) )+", "+( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id)                    ) : swbreak
+				default: syori_write( syori_count ) = write_atama + ( pos_x2_(mod.id) + size_w2_(mod.id) )+", "+( pos_y2_(mod.id)                    )+", "+( pos_x2_(mod.id)                    )+", "+( pos_y2_(mod.id) + size_h2_(mod.id) ) : swbreak
 			swend
 			syori_count++
 			swbreak
 			
-		case "circle"
+		case "circle" 
 			//--------------------------------------
 			// オブジェクト自身にpos,sizeパラメータがあり、手前や後続に影響を与えない。
 			//--------------------------------------
 			script_buf = strmid( fullScript_buf, index_toFunc, INT_MAX )
 			//オブジェクト調査
-			matches result, script_buf, "^(circle\\s+)(.*?,.*?,.*?,.*?)(?:\\s*\\,|\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
-			if stat = 0 : swbreak
+			matches result, script_buf, "^(circle)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;パラメータが全省略されている
+			_result = ""
+			if stat = 0 {
+				matches result, script_buf, "^(circle[ \t]+)(.*?,.*?,.*?,.*?),.*?[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第5パラメータまであるとき
+				if stat = 0 {
+					matches result, script_buf, "^(circle[ \t]+)(.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+					if stat = 0 : swbreak
+				}
+				_result = result(0,2)
+			}
 			syori_line( syori_count ) = hspLine_(mod.id)
 			syori_index_lineHead( syori_count ) = index_lineHead
 			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1)
-			syori_delete_len( syori_count ) = strlen.result(0,2)
-			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )+", "+( size_w2_(mod.id) + pos_x2_( mod.id ) )+", "+( size_h2_(mod.id) + pos_y2_( mod.id ) )
+			syori_delete_len( syori_count ) = strlen._result
+			write_atama = "" : if result(0,1) = "circle" : write_atama = " " ;「circle」だけでパラメータ全省略のときもある。新たに書き足されるパラメータの間に空白を入れる。
+			syori_write( syori_count ) = write_atama + pos_x2_( mod.id )+", "+pos_y2_( mod.id )+", "+( size_w2_(mod.id) + pos_x2_( mod.id ) )+", "+( size_h2_(mod.id) + pos_y2_( mod.id ) )
 			syori_count++
 			swbreak
 			
@@ -609,8 +631,29 @@ local _result
 			//--------------------------------------
 			script_buf = strmid( fullScript_buf, index_toFunc, INT_MAX )
 			//オブジェクト調査
-			matches result, script_buf, "^(grect\\s+)(.*?,.*?,)(.*?,)(.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
-			if stat = 0 : swbreak
+			matches result, script_buf, "^(grect[ \t]+)(.*?,.*?)(,.*?)(,.*?,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第5パラメータまであるとき
+			if stat > 0 {
+				_result = result(0,2) + result(0,3) + result(0,4),  result(0,3)
+			}else {
+				matches result, script_buf, "^(grect[ \t]+)(.*?,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第4パラメータまであるとき
+				if stat > 0 {
+					_result = result(0,2) + result(0,3) + result(0,4),  result(0,3)
+				}else {
+					matches result, script_buf, "^(grect[ \t]+)(.*?,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第3パラメータまであるとき
+					if stat > 0 {
+						_result = result(0,2) + result(0,3),  result(0,3)
+					}else {
+						matches result, script_buf, "^(grect[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1か第2パラメータまであるとき
+						if stat > 0 {
+							_result = result(0,2),  ", "+opt1_( mod.id )
+						}else {
+							matches result, script_buf, "^(grect)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;パラメータが全省略されているとき
+							if stat = 0 : swbreak
+							_result = "",  ", "+opt1_( mod.id )
+						}
+					}
+				}
+			}
 			dig = opt1_( mod.id )
 			dbl = sin(dig)*sin(dig)-cos(dig)*cos(dig)
 			w = size_w1_( mod.id )
@@ -618,8 +661,9 @@ local _result
 			syori_line( syori_count ) = hspLine_(mod.id)
 			syori_index_lineHead( syori_count ) = index_lineHead
 			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1)
-			syori_delete_len( syori_count ) = strlen.result(0,2) + strlen.result(0,3) + strlen.result(0,4)
-			syori_write( syori_count ) = ""+(pos_x2_( mod.id ) + (w+1)/2)+", "+(pos_y2_( mod.id ) + (h+1)/2)+", "+result(0,3)+" "+(int((cos(dig)*w-sin(dig)*h)/(-dbl)*10+5)/10)+", "+(int((sin(dig)*w-cos(dig)*h)/dbl*10+5)/10)
+			syori_delete_len( syori_count ) = strlen._result(0)
+			write_atama = "" : if result(0,1) = "grect" : write_atama = " " ;「circle」だけでパラメータ全省略のときもある。新たに書き足されるパラメータの間に空白を入れる。
+			syori_write( syori_count ) = write_atama + (pos_x2_( mod.id ) + (w+1)/2)+", "+(pos_y2_( mod.id ) + (h+1)/2)+ _result(1) +", "+(int((cos(dig)*w-sin(dig)*h)/(-dbl)*10+5)/10)+", "+(int((sin(dig)*w-cos(dig)*h)/dbl*10+5)/10)
 			syori_count++
 			swbreak
 			
@@ -632,7 +676,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -649,12 +693,12 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(picload\\s+.*?,?.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(picload[ \t]+.*?,?.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
@@ -669,7 +713,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -686,19 +730,19 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(chkbox\\s+.*?,.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(chkbox[ \t]+.*?,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//objsize調査
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
 				//index_toFunc前のobjsize調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)objsize\\s+)("+size_w0_(mod.id)+"\\s*,\\s*"+size_h0_(mod.id)+")(?:\\s*\\,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])objsize[ \t]+)("+size_w0_(mod.id)+"[ \t]*,[ \t]*"+size_h0_(mod.id)+")[ \t]*(?:,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -717,10 +761,10 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのobjsize調査
-				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))objsize\\s+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))objsize[ \t]+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(chkbox\\s+.*?,.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(chkbox[ \t]+.*?,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
 					syori_write( syori_count ) = " : objsize "+size_w0_(mod.id)+", "+size_h0_(mod.id)
 					if objsz_py_( mod.id ) ! 0 : syori_write( syori_count ) += ", "+objsz_py_( mod.id )
@@ -738,7 +782,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -755,31 +799,30 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(mesbox\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(mesbox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//オブジェクト調査(size)
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
-				matches result, script_buf_after, "^(mesbox\\s+)(.*?)(,.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
-				//パラメータがカンマごと省略されているときでも上手いこと取り出したい
+				matches result, script_buf_after, "^(mesbox[ \t]+)(.*?)(,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第4パラメータ以上あるとき
 				if stat > 0 {
 					_result = result(0,3) + result(0,4)
 				}else {
-					matches result, script_buf_after, "^(mesbox\\s+)(.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+					matches result, script_buf_after, "^(mesbox[ \t]+)(.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第3パラメータまであるとき
 					if stat > 0 {
 						_result = result(0,3) + result(0,4)
 					}else {
-						matches result, script_buf_after, "^(mesbox\\s+)(.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+						matches result, script_buf_after, "^(mesbox[ \t]+)(.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第2パラメータまであるとき
 						if stat > 0 {
 							_result = result(0,3)
 						}else {
-							matches result, script_buf_after, "^(mesbox\\s+)(.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+							matches result, script_buf_after, "^(mesbox[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータまであるとき(パラメータ全省略はできない)
 							if stat = 0 : swbreak
 							_result = ""
 						}
@@ -803,7 +846,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -820,31 +863,30 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(input\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(input[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//オブジェクト調査(size)
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
-				matches result, script_buf_after, "^(input\\s+)(.*?)(,.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
-				//パラメータがカンマごと省略されているときでも上手いこと取り出したい
+				matches result, script_buf_after, "^(input[ \t]+)(.*?)(,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第4パラメータまであるとき
 				if stat > 0 {
 					_result = result(0,3) + result(0,4)
 				}else {
-					matches result, script_buf_after, "^(input\\s+)(.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+					matches result, script_buf_after, "^(input[ \t]+)(.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第3パラメータまであるとき
 					if stat > 0 {
 						_result = result(0,3) + result(0,4)
 					}else {
-						matches result, script_buf_after, "^(input\\s+)(.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+						matches result, script_buf_after, "^(input[ \t]+)(.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第2パラメータまであるとき
 						if stat > 0 {
 							_result = result(0,3)
 						}else {
-							matches result, script_buf_after, "^(input\\s+)(.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+							matches result, script_buf_after, "^(input[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータまであるとき(パラメータ全省略はできない)
 							if stat = 0 : swbreak
 							_result = ""
 						}
@@ -868,7 +910,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -885,19 +927,19 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(combox\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(combox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//objsize調査
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
 				//index_toFunc前のobjsize調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)objsize\\s+)("+size_w0_(mod.id)+"\\s*,\\s*"+size_h0_(mod.id)+")(?:\\s*\\,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])objsize[ \t]+)("+size_w0_(mod.id)+"[ \t]*,[ \t]*"+size_h0_(mod.id)+")(?:[ \t]*\\,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -916,10 +958,10 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのobjsize調査
-				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))objsize\\s+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))objsize[ \t]+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(combox\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(combox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
 					syori_write( syori_count ) = " : objsize "+size_w0_(mod.id)+", "+size_h0_(mod.id)
 					if objsz_py_( mod.id ) ! 0 : syori_write( syori_count ) += ", "+objsz_py_( mod.id )
@@ -937,7 +979,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -954,19 +996,19 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(listbox\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(listbox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//objsize調査
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
 				//index_toFunc前のobjsize調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)objsize\\s+)("+size_w0_(mod.id)+"\\s*,\\s*"+size_h0_(mod.id)+")(?:\\s*\\,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])objsize[ \t]+)("+size_w0_(mod.id)+"[ \t]*,[ \t]*"+size_h0_(mod.id)+")[ \t]*(?:,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -985,10 +1027,10 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのobjsize調査
-				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))objsize\\s+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))objsize[ \t]+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(listbox\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(listbox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
 					syori_write( syori_count ) = " : objsize "+size_w0_(mod.id)+", "+size_h0_(mod.id)
 					if objsz_py_( mod.id ) ! 0 : syori_write( syori_count ) += ", "+objsz_py_( mod.id )
@@ -1006,7 +1048,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -1023,34 +1065,33 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(winobj\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(winobj[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//オブジェクト調査(size)
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
-				matches result, script_buf_after, "^(winobj\\s+)(.*?,.*?)(,.*?)(,.*?)(,.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
-				//パラメータがカンマごと省略されているときでも上手いこと取り出したい
+				matches result, script_buf_after, "^(winobj[ \t]+)(.*?,.*?)(,.*?)(,.*?)(,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第7パラメータ以上あるとき
 				if stat > 0 {
 					result(0,2) += result(0,3) + result(0,4)
 					_result = result(0,5) + result(0,6)
 				}else {
-					matches result, script_buf_after, "^(winobj\\s+)(.*?,.*?)(,.*?)(,.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+					matches result, script_buf_after, "^(winobj[ \t]+)(.*?,.*?)(,.*?)(,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第6パラメータまであるとき
 					if stat > 0 {
 						result(0,2) += result(0,3) + result(0,4)
 						_result = result(0,5) + result(0,6)
 					}else {
-						matches result, script_buf_after, "^(winobj\\s+)(.*?,.*?)(,.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+						matches result, script_buf_after, "^(winobj[ \t]+)(.*?,.*?)(,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第5パラメータまであるとき
 						if stat > 0 {
 							result(0,2) += result(0,3) + result(0,4)
 							_result = result(0,5)
 						}else {
-							matches result, script_buf_after, "^(winobj\\s+)(.*?,.*?)(,.*?)(,.*?)(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
+							matches result, script_buf_after, "^(winobj[ \t]+)(.*?,.*?)(,.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第4パラメータまであるとき(第3以下からの処理はウィンドウスタイルが0になりどうせ表示されず触れないので不要)
 							if stat = 0 : swbreak
 							result(0,2) += result(0,3) + result(0,4)
 							_result = ""
@@ -1075,7 +1116,7 @@ local _result
 			//pos調査
 			if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 				//index_toFunc前のpos調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)pos\\s+)("+pos_x0_(mod.id)+"\\s*,\\s*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -1092,19 +1133,19 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのpos調査
-				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))pos\\s+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(button(?:\\s+(?:goto|gosub))?\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(button(?:[ \t]+(?:goto|gosub))?[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
-					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id ) ;カレントに戻す
+					syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
 					syori_count++
 				}
 			}
 			//objsize調査
 			if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
 				//index_toFunc前のobjsize調査
-				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|\\s)objsize\\s+)("+size_w0_(mod.id)+"\\s*,\\s*"+size_h0_(mod.id)+")(?:\\s*\\,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
+				GetData_BeforeFunc_LastMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*?(?:\n|:|\\{|[ \t])objsize[ \t]+)("+size_w0_(mod.id)+"[ \t]*,[ \t]*"+size_h0_(mod.id)+")[ \t]*(?:,|\n|:|;|//|/\\*|\\}|$)", funcnameAffectedSize_objsize_, scopeBreakerReg_before_
 				if stat ! 0 {
 					syori_line( syori_count ) = lineNum_before
 					syori_index_lineHead( syori_count ) = indexLineHead_before
@@ -1123,10 +1164,10 @@ local _result
 					syori_count++
 				}
 				//index_toFunc後ろのobjsize調査
-				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|\\s))objsize\\s+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
+				if NeedBackToOriginal_AfterFunc_SubMatch( script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))objsize[ \t]+", funcnameAffectedSize_objsize_, scopeBreakerReg_after_size_ ) {
 					syori_line( syori_count ) = hspLine_(mod.id)
 					syori_index_lineHead( syori_count ) = index_lineHead
-					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(button(?:\\s+(?:goto|gosub))?\\s+.*?)(?:\n|:|;|//|/\\*|\\}|$)" )
+					syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( script_buf_after, "^(button(?:[ \t]+(?:goto|gosub))?[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
 					syori_delete_len( syori_count ) = 0
 					syori_write( syori_count ) = " : objsize "+size_w0_(mod.id)+", "+size_h0_(mod.id)
 					if objsz_py_( mod.id ) ! 0 : syori_write( syori_count ) += ", "+objsz_py_( mod.id )
@@ -1141,7 +1182,7 @@ local _result
 	//======================================
 	// MODE_OverwriteHsed_ == 1 :エディタのスクリプトも一緒に書き換えていく
 	//--------------------------------------
-	;行が若い順にソートするための配列を作る
+	;行の若い順にソートするための配列を作る
 	Get_syoriSortNums syori_sortedNums, syori_line, syori_index_fromLineHead, syori_count
 	;maeScript、atoScript を作っていく
 	Set_maeScript_ mod.id, strf("【ID: %d / タイプ: %s】\n\n", modID_( mod.id ), objType_(mod.id) )
@@ -1155,7 +1196,7 @@ local _result
 		hsow_caretPos = 0
 		hsow_overwriteCompleted = 1
 	}
-	repeat syori_count
+	repeat syori_count 
 		cn = syori_sortedNums(cnt)
 		if line_num ! syori_line( cn ) {
 			line_num = syori_line( cn )
@@ -1183,7 +1224,8 @@ local _result
 				if hspFile_( mod.id ) = "???" { ;もし無題ならhsptmp_スクリプトと同じ中身のタブを表示させる
 					HSED_ShowTab_script hsptmp_
 				}else {
-					HSED_ShowTab_filename dirCurrent+"\\"+hspFile_( mod.id )
+					hspFilePath = hspFile_( mod.id ) : if strmid( hspFilePath, 1, 2 ) ! ":\\" : hspFilePath = dirCurrent+"\\"+hspFilePath
+					HSED_ShowTab_filename hspFilePath
 				}
 				if stat = -1 : hsow_openTabFilename = "" : hsow_openTabFootyID = -1 : hsow_overwriteCompleted = 0 : break ;タブを開けなかった
 				hsow_openTabFilename = hspFile_( mod.id )
@@ -1204,12 +1246,12 @@ local _result
 			HSED_MoveCaretRight hsow_openTabFootyID, rmove - hsow_caretPos ;移動済みの場合はその分間引く
 			;BackSpaceで消す
 			bmove = StringToWordCount( hsow_temp2 )
-			HSED_BackSpaceKey hsow_openTabFootyID, bmove
+			HSED_PressBackspaceKey hsow_openTabFootyID, bmove
 			;書き込む
 			hsed_sendstr hsow_temp3
 			hsow_caretPos = rmove - bmove + StringToWordCount( hsow_temp3 )
 			;//書き換え完了 (修正済みマークと次に向けて初期値を修正する)
-			Set_fixedScript_ mod.id, 1
+			Set_hasBeenFixed_ mod.id, 1
 			Set_pos_xy0_ mod.id, pos_x2_(mod.id), pos_y2_(mod.id)
 			Set_pos_xy1_ mod.id, pos_x2_(mod.id), pos_y2_(mod.id)
 			Set_size_wh0_ mod.id, size_w2_(mod.id), size_h2_(mod.id)
@@ -1229,7 +1271,11 @@ local _result
 		flg = 0 : if cnt < syori_count-1 { if syori_line( syori_sortedNums(cnt+1) ) ! line_num { flg = 1 } } else : flg = 1
 		if flg = 1 {
 			Set_atoScript_ mod.id, atoScript_( mod.id ) + strf( "%4d", syori_line( cn ) ) + " ： " + strtrim(oneLineScript,1,'\t') + "\n\n"
-			fullScript_buf = strmid( fullScript_buf, 0, syori_index_lineHead( cn ) ) + oneLineScript + strmid( fullScript_buf, syori_index_lineHead( cn ) + oriLen_oneLineScript, INT_MAX ) ;ついでにfullScript_bufも書き換えておく
+			;ついでにfullScript_bufの書き換えと以降のsyori_index_lineHeadの更新もしておく
+			fullScript_buf = strmid( fullScript_buf, 0, syori_index_lineHead( cn ) ) + oneLineScript + strmid( fullScript_buf, syori_index_lineHead( cn ) + oriLen_oneLineScript, INT_MAX )
+			repeat syori_count - (cnt+1), cnt+1
+				syori_index_lineHead( cnt ) += strlen.oneLineScript - oriLen_oneLineScript
+			loop
 		}
 	loop
 
@@ -1258,7 +1304,7 @@ local i
 		getstr word, script, index, ,INT_MAX : index += strsize
 	loop
 	strsize_ = strsize
-	matches result, word, "^(.*?(?::|\\{|\\s|\\n|^))"+_objType+"\\s+", 0, 1, 1
+	matches result, word, "^(.*?(?::|\\{|[ \t]|\n|^))"+_objType+"(?:[ \t]|\n|:|;|//|/\\*|\\}|$)", 0, 1, 1
 	if stat = 0 : return
 	out_index_toFunc = index - strsize_ + strlen.result(0,1)
 	out_index_lineHead = index - strsize_
@@ -1283,7 +1329,7 @@ local i
 	;間に邪魔者(命令またはカレントスコープが外れる記述)がいればそのposでは指定できない。命令の直前に新規で加える形になる。
 	if matched = 1 {
 		foreach funcnameJammer
-			if match( result, "(\n|:|\\{|\\s)"+funcnameJammer.cnt+"\\s", 0, 1 ) ! "" : matched = 0 : break ;ダメ
+			if match( result, "(\n|:|\\{|[ \t])"+funcnameJammer.cnt+"[ \t]", 0, 1 ) ! "" : matched = 0 : break ;ダメ
 		loop
 	}
 	if matched = 1 {
@@ -1304,7 +1350,7 @@ local _result
 	;間に邪魔者がいればmatchTextの前にカレント戻しが必要となる箇所がある。命令の直後にカレントを元に戻す処理を入れる。
 	if need = 0 {
 		foreach funcnameJammer
-			_result = match( result, "^(?:.|\n)*?(\n|:|\\{|\\s)"+funcnameJammer.cnt+"\\s*?.*?(?:\n|:|;|//|/\\*|\\}|$)", 0, 1 )
+			_result = match( result, "^(?:.|\n)*?(\n|:|\\{|[ \t])"+funcnameJammer.cnt+"[ \t]*?.*?(?:\n|:|;|//|/\\*|\\}|$)", 0, 1 )
 			if _result ! "" : result = _result  : need = 1 ;必要  //breakせず、すべて繰り返せば一番近い邪魔者が得られる
 		loop
 	}
@@ -1333,7 +1379,7 @@ local word
 	loop
 	return
 //--------------------------------------
-// 最終の行数と行頭のindexを変数に入れる
+// 行と行からのindexを見て若い順にソートして配列を返す
 //--------------------------------------
 #deffunc local Get_syoriSortNums array out_sortNums, array _syori_line, array _syori_index, int _syori_count, \
 local i, \
@@ -1531,7 +1577,7 @@ return
 //--------------------------------------
 // スクリプトエディタにバックスペースのコードを送信して指定文字数ぶん消す
 //--------------------------------------
-#deffunc local HSED_BackSpaceKey int nFootyID, int i
+#deffunc local HSED_PressBackspaceKey int nFootyID, int i
 	hsed_getwnd hwndHsedFooty, HGW_EDIT, nFootyID
 	repeat i
 		keybd_send hwndHsedFooty, VK_BACK, 0
@@ -1539,7 +1585,7 @@ return
 	loop
 	return
 //------------------------------------------------------------------------------
-// End of スクリプトエディタ操作用の命令
+// End of スクリプトエディタ操作用の命令 (要#include "hsedsdk.as")
 //------------------------------------------------------------------------------
 
 #global
@@ -1688,8 +1734,8 @@ return
 	bgColorR = 253	;被らなさそうな適当な背景色
 	bgColorG = 249	;
 	bgColorB = 247	;
-	rxi = -1, 0, 1, 1, 1, 0,-1,-1, 0, 2, 0,-2 ;lineクリックの太らせ判定用配列
-	ryi = -1,-1,-1, 0, 1, 1, 1, 0,-2, 0, 2, 0
+	rxi = -1, 0, 1, 1, 1, 0,-1,-1,-2,-1, 0, 1, 2, 2, 2, 2, 2, 1, 0,-1,-2,-2,-2,-2 ;lineクリックの太らせ判定用配列
+	ryi = -1,-1,-1, 0, 1, 1, 1, 0,-2,-2,-2,-2,-2,-1, 0, 1, 2, 2, 2, 2, 2, 1, 0, 1 ;
 	alignDot = 0
 	dotInterval = 5
 	alignObj = 1
@@ -1767,6 +1813,8 @@ return
 	hButton_wTopMost = objinfo(stat, 2)
 	sendmsg hButton_wTopMost, BM_SETSTYLE, BS_AUTOCHECKBOX
 	sendmsg hButton_wTopMost, BM_SETCHECK, wTopMost
+	pos 400, 30 
+	button@hsp gosub "ヘルプ", *BUTTON_Help@ObjPosMod
 	gsel widMain_child, 1
 
 	;// 吸着場所を表示するウィンドウを作成
@@ -1776,7 +1824,7 @@ return
 	SetWindowLong hwnd, GWL_HWNDPARENT, hwMain
 	SetWindowLong hwnd, GWL_EXSTYLE, GetWindowLong(hwnd,GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT	;色とマウスイベントの透過
 	SetLayeredWindowAttributes hwnd, 0, 255*75/100, LWA_COLORKEY | LWA_ALPHA
-	boxf
+	boxf@hsp
 	blankWinID++
 
 	gsel widMain, 2
@@ -1818,6 +1866,20 @@ return
 	gsel widMain, 1 + wTopMost
 	gsel g_sel
 	return
+*BUTTON_Help
+	g_sel_help = ginfo_sel
+	gsel widMain
+	dialog {"
+		- 1 -
+		buttonやboxf等のオブジェクトに対し、Ctrlを押しながらマウスの左ドラッグで位置を変更、右ドラッグでサイズを変更できます。
+		- 2 -
+		リストからスクリプトを書き換えたいオブジェクトを選択し「スクリプト変更」ボタンを押してください。スクリプトエディタ上の文字が書き換えられます。
+		(エディタで開いてない場合は「ファイルを開く」ボタンになります。)
+		---
+		※  オブジェクトの操作時にあわせてShiftも押すと移動の縦横制限をしたりサイズを縦横同時に合わせることができます。
+	"},0,"Object Pos Module  -  ヘルプ"
+	gsel g_sel_help
+	return
 //--------------------------------------
 // スクリプトエディタ書き換えボタンのラベル
 //--------------------------------------
@@ -1830,11 +1892,12 @@ return
 	repeat stat
 		lv_id = int.GetItem_ListView( selectedItems.cnt, 2 )
 		modID = Get_modID_@ObjPosModDataClass( objData, lv_id )
-		if fixedScript_@ObjPosModDataClass( objData.modID ) ! 0 : continue ;エディタ書き換え済みのものは弾く
+		if hasBeenFixed_@ObjPosModDataClass( objData.modID ) ! 0 : continue ;エディタ書き換え済みのものは弾く
 		modIDs( modIDs_count ) = modID : modIDs_count++
 		if IsOpenedHspFile_@ObjPosModDataClass( objData.modID ) = 0 {
 			;スクリプトエディタで開いてないファイルがある場合はそれを開くだけ開いて、一旦処理を止める
-			exec dir_exe+"\\hsed3.exe \""+dirCurrent@ObjPosModDataClass+"\\"+hspFile_@ObjPosModDataClass( objData.modID )+"\""
+			hspFilePath = hspFile_@ObjPosModDataClass( objData.modID ) : if strmid( hspFilePath, 1, 2 ) ! ":\\" : hspFilePath = dirCurrent@ObjPosModDataClass+"\\"+hspFilePath
+			exec dir_exe+"\\hsed3.exe \""+hspFilePath+"\""
 			allGreen = 0
 		}
 	loop
@@ -1933,7 +1996,7 @@ return
 	return
 
 //--------------------------------------
-// リストビューにデータをセット (移動しているオブジェクト(複数)をリストの上の方にまとめるため行も指定している)
+// リストビューにデータをセット (移動中のブジェクト(複数)をリストの上の方にまとめるため行も指定している)
 //--------------------------------------
 #deffunc local SetData_ListView int id, int gyo
 	sendmsg hlist, LVM_GETITEMCOUNT, 0, 0
@@ -1971,6 +2034,7 @@ return
 				swbreak
 		swend                                                    : lvitem = 0x0001, gyo, 6, 0, 0, varptr(pszText) : sendmsg hList, LVM_SETITEMA,    0, varptr(lvitem)
 	}
+	; 行の内容を更新する
 	pszText = strf( "POS( %d, %d )", pos_x1_@ObjPosModDataClass( objData.id ), pos_y1_@ObjPosModDataClass( objData.id ) )
 	                                                             : lvitem = 0x0001, gyo, 4, 0, 0, varptr(pszText) : sendmsg hList, LVM_SETITEMA,    0, varptr(lvitem)
 	pszText = strf( "SIZE( %d, %d )", size_w1_@ObjPosModDataClass( objData.id ), size_h1_@ObjPosModDataClass( objData.id ) ) : if objType_@ObjPosModDataClass( objData.id ) = "mes" : pszText = strf( "FONT( %s )", opt5_@ObjPosModDataClass( objData.id ) )
@@ -2025,7 +2089,7 @@ return
 	loop
 	return
 //--------------------------------------
-// リストビューのID(カラム2)と合致するものを選択状態にする
+// リストビューのID(カラム2)が配列dataids内の値と合致するものをすべて選択状態にする
 //--------------------------------------
 #deffunc local SetSelectDataIDs_ListView array _objData, array dataids
 	sendmsg hlist, LVM_GETITEMCOUNT, 0, 0
@@ -2065,7 +2129,7 @@ return
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
-// HSPの命令をオブジェクト配置モジュール用に置換
+// HSPの命令をObjPosMod用に置換
 //------------------------------------------------------------------------------
 //--------------------------------------
 // mes
@@ -2250,7 +2314,7 @@ return
 	hw = hwnd
 	sel = ginfo_sel
 	col = ginfo_r, ginfo_g, ginfo_b
-	size = p3-p1+1, p4-p2+1 ;初期値とスクリプト書き換え時に細工している
+	size = p3-p1+1, p4-p2+1 ;初期値とスクリプト書き換え時に細工をしている
 	posi = p1, p2
 	cxy = ginfo_cx, ginfo_cy
 	objsize_py = bmscr.31
@@ -2293,7 +2357,7 @@ return
 	sel = ginfo_sel
 	col = ginfo_r, ginfo_g, ginfo_b
 	size = abs(xs-xe), abs(ys-ye)
-	// オブジェクトの位置(左上右下座標両方)移動、もしくはサイズ(右下座標のみ)変更しか対応していない。
+	// オブジェクトの位置移動、もしくはサイズ変更(右下座標のみ)しか対応していない。
 	// よって一度のサイズ変更で縦横無尽に一回転させたりとかはできない。無理くりタイプ分けして制限のあるサイズ変更操作となる。
 	        if xs >= xe & ys >= ye { : type = 0  : posi = xe, ye ;左上へ
 	}else : if xs <  xe & ys <  ye { : type = 1  : posi = xs, ys ;右下へ
@@ -2303,7 +2367,7 @@ return
 	
 	objsize_py = bmscr.31
 	;サイズを可変にするためあらかじめウィンドウサイズぶん確保しておく
-	set = size(0), size(1), size(0)+1, size(1)+1
+	set = size(0), size(1), size(0)+1, size(1)+1 ;line用の細工
 	if set(0) < ginfo_sx : set(0) = ginfo_sx
 	if set(1) < ginfo_sy : set(1) = ginfo_sy
 	;子ウィンドウとして貼り付け
@@ -2387,22 +2451,21 @@ return
 // grect
 //--------------------------------------
 #undef grect
-#define global grect(%1=0,%2=0,%3=-1.0,%4=-1,%5=-1) ScLine@ObjPosMod=__line__ : ScFile@ObjPosMod=__file__ : _grect@ObjPosMod %1,%2,%3,%4,%5
+#define global grect(%1=0,%2=0,%3=0.0,%4=-1,%5=-1) ScLine@ObjPosMod=__line__ : ScFile@ObjPosMod=__file__ : _grect@ObjPosMod %1,%2,%3,%4,%5
 #deffunc _grect@ObjPosMod int p1, int p2, double p3, int p4, int p5
 	st=stat
-	d = p3 : w = p4 : h = p5
+	w = p4 : h = p5
 	mref bmscr, 67
-	if d = -1.0 : d = 0.0 ;角度を設けていないものは扱わないreturnする
 	if w = -1 : w = bmscr.33 ;BMSCR_gx //gcopy size
 	if h = -1 : h = bmscr.34 ;BMSCR_gy
-	if NG_BlackOrWhite( ginfo_sel ) || ( p3 = -1.0 ) || bmscr.17=WIN_TYPE_BUFFER : grect@hsp p1,p2,d,w,h : return st
+	if NG_BlackOrWhite( ginfo_sel ) || ( p3 = -1.0 ) || bmscr.17=WIN_TYPE_BUFFER : grect@hsp p1,p2,p3,w,h : return st
 	CheckInited ginfo_sel
-	if isCreated@ObjPosModDataClass( objData, ScFile, ScLine, "grect" ) : grect@hsp p1,p2,d,w,h : return st	;作成済みの場合、ループ等でもう一度作られてしまわないようにする
+	if isCreated@ObjPosModDataClass( objData, ScFile, ScLine, "grect" ) : grect@hsp p1,p2,p3,w,h : return st	;作成済みの場合、ループ等でもう一度作られてしまわないようにする
 	
 	hw = hwnd
 	sel = ginfo_sel
 	col = ginfo_r, ginfo_g, ginfo_b
-	size = int(absf(cos(d)*w)+absf(sin(d)*h)), int(absf(sin(d)*w)+absf(cos(d)*h))
+	size = int(absf(cos(p3)*w)+absf(sin(p3)*h)), int(absf(sin(p3)*w)+absf(cos(p3)*h))
 	posi = p1-size(0)/2, p2-size(1)/2
 	cxy = ginfo_cx, ginfo_cy
 	objsize_py = bmscr.31
@@ -2421,12 +2484,12 @@ return
 	color bgColorR, bgColorG, bgColorB
 	boxf@hsp
 	color col(0), col(1), col(2)
-	grect@hsp size(0)/2, size(1)/2, d, w, h
+	grect@hsp size(0)/2, size(1)/2, p3, w, h
 
 	;詳細をモジュール変数に記憶
 	newmod objData, ObjPosModDataClass, sel, hw, blankWinID, hwnd, "grect", posi(0),posi(1), size(0),size(1), cxy(0),cxy(1), objsize_py, col(0),col(1),col(2), ScFile, ScLine
 	modvID = stat
-	Set_opt1_@ObjPosModDataClass objData.modvID, d
+	Set_opt1_@ObjPosModDataClass objData.modvID, p3
 	
 	gsel blankWinID, 1
 	blankWinID++
@@ -2519,7 +2582,6 @@ return
 	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "mesbox", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
 	modvID = stat
 	Set_opt1_@ObjPosModDataClass objData.modvID, p1
-	;Set_opt2_@ObjPosModDataClass objData.modvID, (p2==0)*1 | (p3==0)*2 ;項目が省略されていたか記憶 (省略されていなかったらここのパラメータを変更する)
 	return st
 	
 //--------------------------------------
@@ -2544,7 +2606,6 @@ return
 	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "input", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
 	modvID = stat
 	Set_opt1_@ObjPosModDataClass objData.modvID, p1
-	;Set_opt2_@ObjPosModDataClass objData.modvID, (p2==0)*1 | (p3==0)*2 ;項目が省略されていたか記憶 (省略されていなかったらここのパラメータを変更する)
 	return st
 
 //--------------------------------------
@@ -2612,7 +2673,6 @@ return
 	modvID = stat
 	Set_opt1_@ObjPosModDataClass objData.modvID, p1
 	Set_opt2_@ObjPosModDataClass objData.modvID, p2
-	;Set_opt3_@ObjPosModDataClass objData.modvID, (p3==0)*1 | (p4==0)*2 ;項目が省略されていたか記憶 (省略されていなかったらここのパラメータを変更する)
 	return st
 
 //--------------------------------------
@@ -2692,7 +2752,7 @@ return
 	if ctrl = 0 {
 		if CountData( selectDataIDs ) > 0 {
 			//mode解除
-			ModeBreak : if 0 { ;なんかこのせせこましい処理を2箇所で書く必要が出たので、ここの周りで命令化させてもらう
+			ModeBreak : if 0 { ;なんかこのせせこましい処理を2箇所(オブジェクト操作後のBUTTONUP)で書く必要が出たので、ここの周りで命令化させてもらう
 			#deffunc local ModeBreak
 				mode = MODE_NONE
 				wpEVENT = 0
@@ -2703,7 +2763,7 @@ return
 					Set_size_wh2_@ObjPosModDataClass objData.selectDataIDs(cnt), size_w1_@ObjPosModDataClass( objData.selectDataIDs(cnt) ), size_h1_@ObjPosModDataClass( objData.selectDataIDs(cnt) )
 					; lineの場合タイプも確定
 					if objType_@ObjPosModDataClass( objData.selectDataIDs(cnt) ) = "line" : Set_opt3_@ObjPosModDataClass objData.selectDataIDs(cnt), opt2_@ObjPosModDataClass( objData.selectDataIDs(cnt) )
-					//スクリプト(変更前、変更後)を更新
+					//スクリプト(変更前[maeScript]、変更後[atoScript])を更新
 					Update_MaeAtoScript_@ObjPosModDataClass objData,selectDataIDs(cnt)
 					//ドットウィンドウ非表示
 					HiddenDotWindow winID_@ObjPosModDataClass( objData.selectDataIDs(cnt) )
@@ -2744,11 +2804,10 @@ return
 						if objType_@ObjPosModDataClass( objData.cnt ) = "line" {
 							point = ginfo_mx, ginfo_my : ScreenToClient objHwnd_@ObjPosModDataClass( objData.cnt ), varptr(point)
 							if -2 <= point(0) && point(0) <= size_w2_@ObjPosModDataClass( objData.cnt )+2 && -2 <= point(1) && point(1) <= size_h2_@ObjPosModDataClass( objData.cnt )+2 {
-								sel = ginfo_sel : gsel objID_@ObjPosModDataClass( objData.cnt ) : cn = cnt
-								repeat length.rxi
-									pget point(0)+rxi.cnt,point(1)+ryi.cnt : if ginfo_r!bgColorR || ginfo_g!bgColorG || ginfo_b!bgColorB : hitHwnd = objHwnd_@ObjPosModDataClass( objData.cn ) : break ;"line"オブジェクトのハンドルに置き換えてしまう
+								cn = cnt
+								repeat length.rxi 
+									if WindowFromPoint( ginfo_mx+rxi.cnt, ginfo_my+ryi.cnt ) = objHwnd_@ObjPosModDataClass( objData.cn ) : hitHwnd = objHwnd_@ObjPosModDataClass( objData.cn ) : break ;"line"オブジェクトのハンドルに置き換えてしまう
 								loop
-								gsel sel
 							}
 						}
 					}
@@ -2761,30 +2820,30 @@ return
 						if alignDot : ShowDotWindow winID_@ObjPosModDataClass( objData.cnt )
 						break
 					}
-					;背景をクリックした→複数選択開始(但しobjType=="mes"廻りでなければ)
+					;背景をクリックした→複数選択開始(但しobjType=="mes","line"廻りでなければ)
 					if winHwnd_@ObjPosModDataClass( objData.cnt ) = hitHwnd {
 						hitID = winID_@ObjPosModDataClass( objData.cnt )
 						mae_mx = ginfo_mx : mae_my = ginfo_my
-						wpEVENT = WM_APP ;WM_APPを予約しておく。但しobjType=="mes"をクリックすることになるかもしれないからループは続ける
+						wpEVENT = WM_APP ;WM_APPを予約しておく。但しobjType=="mes","line"をクリックすることになるかもしれないからループは続ける
 					}
 				loop
 				SetLayered_SelectingObject SW_SHOW	;選択中オブジェクトの表示を変更
 				if CountData( selectDataIDs ) > 0 : return
 				swbreak
 			case WM_MOUSEMOVE
-				if wpEVENT = WM_APP : SelectLineDraw hitID, mae_mx, mae_my, ginfo_mx, ginfo_my : swbreak
+				if wpEVENT = WM_APP : SelectLineDraw hitID, mae_mx, mae_my, ginfo_mx, ginfo_my : swbreak ;SelectLineDrawウィンドウ(矩形選択でオブジェクトを複数掴む枠)を表示と更新
 				if CountData( selectDataIDs ) > 0 {
 					if wpEVENT = WM_LBUTTONDOWN : mode = MODE_MOVE
 					if wpEVENT = WM_RBUTTONDOWN : mode = MODE_SIZE
 					wpEVENT = 0
 					ClearAllSelected_ListView ;リストビューに選択中のものがあれば解除する
-					Clear_SCRIPTBOX
+					Clear_SCRIPTBOX           ;変更前/変更後スクリプトのmesboxをクリアする
 				}
 				swbreak
 			case WM_LBUTTONUP
 			case WM_RBUTTONUP
 				if wpEVENT = WM_APP {
-					ShowWindow hwGuid, SW_HIDE ;SelectLineDrawウィンドウを非表示
+					ShowWindow hwGuid, SW_HIDE ;SelectLineDrawウィンドウ(矩形選択でオブジェクトを複数掴む枠)を非表示
 					foreach objData
 						;矩形の中のオブジェクトを選択状態にする
 						if winID_@ObjPosModDataClass( objData.cnt ) = hitID {
@@ -2819,7 +2878,7 @@ return
 					if objType_@ObjPosModDataClass( objData.selectDataIDs(cnt) ) = "line" : Set_opt3_@ObjPosModDataClass objData.selectDataIDs(cnt), opt2_@ObjPosModDataClass( objData.selectDataIDs(cnt) )
 				loop
 				if (mode = MODE_MOVING || mode = MODE_SIZING) & CountData( selectDataIDs ) = 1 {
-					//mode解除
+					//操作していたオブジェクトが１つの場合はmode解除してしまう
 					ModeBreak
 				}
 				//moving, sizing 終了  ガイドあれば非表示
@@ -2847,8 +2906,8 @@ return
 							if abs(zureX) <= objConnectDiff : set.0 += zureX
 							if abs(zureY) <= objConnectDiff : set.1 += zureY
 						}
-						if shift=1 && ( abs(ginfo_mx - mae_mx) <  abs(ginfo_my - mae_my) ) : set.0 = pos_x2_@ObjPosModDataClass( objData.grabID )
-						if shift=1 && ( abs(ginfo_mx - mae_mx) >= abs(ginfo_my - mae_my) ) : set.1 = pos_y2_@ObjPosModDataClass( objData.grabID )
+						if shift=1 && ( abs(ginfo_mx - mae_mx) <  abs(ginfo_my - mae_my) ) : set.0 = pos_x2_@ObjPosModDataClass( objData.grabID ) ;+Shiftで縦横移動制限
+						if shift=1 && ( abs(ginfo_mx - mae_mx) >= abs(ginfo_my - mae_my) ) : set.1 = pos_y2_@ObjPosModDataClass( objData.grabID ) ;
 						;選択している全てのオブジェクトに反映させたいため差分値を計算
 						set.0 = set.0 - pos_x2_@ObjPosModDataClass( objData.grabID )
 						set.1 = set.1 - pos_y2_@ObjPosModDataClass( objData.grabID )
@@ -2862,7 +2921,7 @@ return
 							if selectDataIDs(cn) < 0 : continue
 							Set_pos_xy1_@ObjPosModDataClass objData.selectDataIDs(cn), pos_x2_@ObjPosModDataClass( objData.selectDataIDs(cn) ) + set.0, pos_y2_@ObjPosModDataClass( objData.selectDataIDs(cn) ) + set.1
 							AutoSet_changedCount_@ObjPosModDataClass objData.selectDataIDs(cn)
-							Set_fixedScript_@ObjPosModDataClass objData.selectDataIDs(cn), 0 ;もし１度スクリプト書き換え済みでもまた動かしたら書き換えられるようにする
+							Set_hasBeenFixed_@ObjPosModDataClass objData.selectDataIDs(cn), 0 ;もし１度スクリプト書き換え済みでもまた動かしたら書き換えられるようにする
 							//リストビューに反映
 							SetData_ListView selectDataIDs(cn), i : i++
 						loop
@@ -2884,9 +2943,9 @@ return
 							if abs(zureX) <= objConnectDiff : set.0 += zureX
 							if abs(zureY) <= objConnectDiff : set.1 += zureY
 						}
-						if CountData( selectDataIDs ) = 1 : if objType_@ObjPosModDataClass( objData.grabID ) = "mes" : shift = 1 - shift ;特殊仕様(mes１つだけを掴んでいるときはshift押してないときに縦横フリー操作にする)
-						if shift=0 && ( abs(ginfo_mx - mae_mx) <  abs(ginfo_my - mae_my) ) : set.0 = size_w2_@ObjPosModDataClass( objData.grabID )
-						if shift=0 && ( abs(ginfo_mx - mae_mx) >= abs(ginfo_my - mae_my) ) : set.1 = size_h2_@ObjPosModDataClass( objData.grabID )
+						if CountData( selectDataIDs ) = 1 : if objType_@ObjPosModDataClass( objData.grabID ) = "mes" : shift = 1 - shift ;特殊仕様(mes１つだけを掴んでいるときはshift押してないときに縦横同時合わせ操作にする)
+						if shift=0 && ( abs(ginfo_mx - mae_mx) <  abs(ginfo_my - mae_my) ) : set.0 = size_w2_@ObjPosModDataClass( objData.grabID ) ;+Shiftでサイズの縦横同時合わせ
+						if shift=0 && ( abs(ginfo_mx - mae_mx) >= abs(ginfo_my - mae_my) ) : set.1 = size_h2_@ObjPosModDataClass( objData.grabID ) ;
 						;選択している全てのオブジェクトに反映させたいため差分値を計算
 						set.0 = set.0 - size_w2_@ObjPosModDataClass( objData.grabID )
 						set.1 = set.1 - size_h2_@ObjPosModDataClass( objData.grabID )
@@ -2914,7 +2973,7 @@ return
 								Set_size_wh1_@ObjPosModDataClass objData.selectDataIDs(cn), size_w2_@ObjPosModDataClass( objData.selectDataIDs(cn) ) + set.0, size_h2_@ObjPosModDataClass( objData.selectDataIDs(cn) ) + set.1
 							}
 							AutoSet_changedCount_@ObjPosModDataClass objData.selectDataIDs(cn)
-							Set_fixedScript_@ObjPosModDataClass objData.selectDataIDs(cn), 0 ;もし１度スクリプト書き換え済みでもまた動かしたら書き換えられるようにする
+							Set_hasBeenFixed_@ObjPosModDataClass objData.selectDataIDs(cn), 0 ;もし１度スクリプト書き換え済みでもまた動かしたら書き換えられるようにする
 							//再描画が必要なオブジェクト(兼optパラメータ変更)
 							RedrawObject objData.selectDataIDs(cn)
 							//リストビューに反映
@@ -2983,6 +3042,7 @@ return
 					}
 					return
 				}
+				;選択中アイテムの変更前/変更後スクリプトをmesboxに表示
 				modIDs_count = 0
 				mesbox_maeScript = ""
 				mesbox_atoScript = ""
@@ -2990,12 +3050,12 @@ return
 				repeat stat
 					lv_id = int.GetItem_ListView( selectedItems.cnt, 2 )
 					modID = Get_modID_@ObjPosModDataClass( objData, lv_id )
-					if fixedScript_@ObjPosModDataClass( objData.modID ) = 0 : modIDs_count++
-					if IsOpenedHspFile_@ObjPosModDataClass( objData.modID ) = 0 : allGreen = 0
+					if hasBeenFixed_@ObjPosModDataClass( objData.modID ) = 0 : modIDs_count++ ;スクリプト書き換え済みのものは個数としてカウントしない
+					if IsOpenedHspFile_@ObjPosModDataClass( objData.modID ) = 0 : allGreen = 0 ;選択アイテムがスクリプトエディタで開かれているかどうか確認
 					mesbox_maeScript += maeScript_@ObjPosModDataClass( objData.modID )
 					mesbox_atoScript += atoScript_@ObjPosModDataClass( objData.modID )
 				loop
-				;選択されたアイテムすべてのhspFileが開かれていないとスクリプト変更ボタンにならないようにする
+				;選択されたアイテムすべてのhspFileがエディタで開かれていないと「スクリプト変更」ボタンにならないようにする
 				if allGreen : string256 = "→スクリプト変更→" : else : string256 = "ファイルを開く"
 				sendmsg hButton_changeScript, WM_SETTEXT, 0, varptr.string256
 				EnableWindow hButton_changeScript, ( modIDs_count > 0 ) ;スクリプト書き換え済みのものしか選択してなかったらボタンは押せないようにしとく
@@ -3008,7 +3068,8 @@ return
 			dupptr nmlistview, lparam, 4*11, 4
 			dup iItem, nmlistview.3
 			;リストビューからフォーカスアイテムのファイル名を取得してスクリプトエディタのタブを表示
-			HSED_ShowTab_filename@ObjPosModDataClass dirCurrent@ObjPosModDataClass+"\\"+GetItem_ListView( iItem, 0 )
+			hspFilePath = GetItem_ListView( iItem, 0 ) : if strmid( hspFilePath, 1, 2 ) ! ":\\" : hspFilePath = dirCurrent@ObjPosModDataClass+"\\"+hspFilePath
+			HSED_ShowTab_filename@ObjPosModDataClass hspFilePath
 			if stat ! -1 {
 				;リストビューからフォーカスアイテムの行番号を取得してその行にキャレットの位置を移動
 				HSED_SetCaretLine@ObjPosModDataClass stat, int.GetItem_ListView( iItem, 1 )
@@ -3021,7 +3082,7 @@ return
 			if nmlvcustomdraw.3 = CDDS_ITEMPREPAINT {
 				lv_id = int.GetItem_ListView( nmlvcustomdraw.9, 2 )
 				modID = Get_modID_@ObjPosModDataClass( objData, lv_id )
-				if fixedScript_@ObjPosModDataClass( objData.modID ) = 1 : nmlvcustomdraw.13 = $CCCCFF ;スクリプト書き換え済みの行は背景色を変える
+				if hasBeenFixed_@ObjPosModDataClass( objData.modID ) = 1 : nmlvcustomdraw.13 = $CCCCFF ;スクリプト書き換え済みの行は背景色を変える
 			}
 			swbreak
 	swend
@@ -3064,7 +3125,7 @@ return
 	return
 	
 //--------------------------------------
-// オブジェクトの再描画 (サイズ変更時に必要)
+// オブジェクトの再描画 (サイズ変更時に必要なもの)
 //--------------------------------------
 #deffunc local RedrawObject var v
 	switch objType_@ObjPosModDataClass( v )
@@ -3111,8 +3172,6 @@ return
 			grect@hsp (w+1)/2, (h+1)/2, dig, int((cos(dig)*w-sin(dig)*h)/(-dbl)*10+5)/10, int((sin(dig)*w-cos(dig)*h)/dbl*10+5)/10
 			redraw 1
 			gsel sel
-			swbreak
-		case "picload"
 			swbreak
 	swend
 	return
@@ -3240,7 +3299,7 @@ return
 		SetWindowPos hwnd, HWND_NOTOPMOST, point.0,point.1, w,h, SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE
 		guidXYWH = point.0, point.1, w, h
 	}
-	if IsWindowVisible( hwGuid ) = 0 : boxf@hsp : SetWindowPos hwGuid, HWND_TOPMOST, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE;gsel widGuid, 2
+	if IsWindowVisible( hwGuid ) = 0 : boxf@hsp : SetWindowPos hwGuid, HWND_TOPMOST, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE ;gsel widGuid, 2
 	redraw 0
 	boxf@hsp
 	color 0,255,0
@@ -3311,7 +3370,7 @@ return
 		SetWindowPos hwnd, HWND_NOTOPMOST, point.0,point.1, w,h, SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE
 		guidXYWH = point.0, point.1, w, h
 	}
-	if IsWindowVisible( hwGuid ) = 0 : boxf@hsp : SetWindowPos hwGuid, HWND_TOPMOST, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE;gsel widGuid, 2
+	if IsWindowVisible( hwGuid ) = 0 : boxf@hsp : SetWindowPos hwGuid, HWND_TOPMOST, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE ;gsel widGuid, 2
 	redraw 0
 	boxf@hsp
 	color 0,255,0
@@ -3338,11 +3397,12 @@ return
 //------------------------------------------------------------------------------
 	
 //------------------------------------------------------------------------------
-// 選択中オブジェクトID操作用の命令
+// 選択中オブジェクトID配列 操作用の命令
 //==============================================================================
 // array v :モジュール変数objData@ObjPosModDataClassのIDを記憶する配列変数
 // 配列例）0,-1,-1,3,1
-// Removeしたり再Addしたところが軽率に-1になるためループ頭で-1を弾いて使用する
+// Removeしたり再Addしたところが軽率に-1になるためループ頭で-1を弾いて使用する。
+// 配列の最後尾に掴んでいる(マウスでドラッグしている)オブジェクトのIDを置くようにしている。
 //------------------------------------------------------------------------------
 #deffunc local InitData array v
 	dim v, 1 : v.0 = -2
