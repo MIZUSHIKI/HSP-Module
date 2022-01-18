@@ -1468,7 +1468,8 @@ return
 //--------------------------------------
 // 指定したスクリプトと同じ内容のタブを探しファイル名を取得
 //--------------------------------------
-#defcfunc local HSED_GetFilename str script
+#defcfunc local HSED_GetFilename var script
+	_script = strtrim_EndReturn( script ) ;hsp3.51とhsp3.6とでhsptmp末尾の改行の扱いが違ったので除去して比較する
 	refs = ""
 	hsed_gettabcount nTabs
 	if stat : return refs
@@ -1477,10 +1478,18 @@ return
 		if stat ! 0 : continue
 		hsed_getfootyid idFooty, cnt
 		hsed_gettext hs_buf, idFooty
-		if hs_buf = script : refs = path : break
+		if strtrim_EndReturn( hs_buf ) = _script : refs = path : break
 	loop
 	sdim hs_buf,1
 	return refs
+//末尾の改行コードを除去
+#defcfunc local strtrim_EndReturn var script, local index, local temp
+	temp = script : index = strlen.temp
+	repeat
+		index -= 2 : if index < 0 : break
+		if wpeek(temp, index) = 2573 : poke temp, index, 0 : else : break ;改行コードなら終端コード書き込み、違ったら終了 
+	loop
+	return temp
 //--------------------------------------
 // ファイルをスクリプトエディタで開いているかどうかを取得
 //--------------------------------------
@@ -1533,14 +1542,15 @@ return
 //--------------------------------------
 // 指定したスクリプトと同じ内容のタブを探して表示させる
 //--------------------------------------
-#deffunc local HSED_ShowTab_script str script
+#deffunc local HSED_ShowTab_script var script
+	_script = strtrim_EndReturn( script ) ;hsp3.51とhsp3.6とでhsptmp末尾の改行の扱いが違ったので除去して比較する
 	st = -1
 	hsed_gettabcount nTabs
 	if stat : return st
 	repeat nTabs
 		hsed_getfootyid idFooty, cnt
 		hsed_gettext hs_buf, idFooty
-		if hs_buf = script {
+		if strtrim_EndReturn( hs_buf ) = _script {
 			hsed_getwnd hwndHsedTab, HGW_TAB
 			sendmsg hwndHsedTab, TCM_SETCURFOCUS, cnt, 0
 			st = idFooty
