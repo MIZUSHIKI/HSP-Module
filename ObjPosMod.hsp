@@ -149,7 +149,7 @@ dirCurrent@ObjPosModDataClass = dir_cur
 		hsptmp_ = ""
 		exist dirCurrent+"\\hsptmp"
 		if strsize ! -1 {
-			sdim hsptmp_, strsize
+			sdim hsptmp_, strsize+1
 			bload dirCurrent+"\\hsptmp", hsptmp_, strsize
 		}
 		sdim hspFiles_, 512
@@ -177,7 +177,7 @@ dirCurrent@ObjPosModDataClass = dir_cur
 			if flg = 1 {
 				exist hspFilePath
 				if strsize ! -1 {
-					sdim fullScript, strsize
+					sdim fullScript, strsize+1
 					bload hspFilePath, fullScript, strsize
 				}
 				hspFiles_( length.hspFiles_ ) = hspFilePath ;ロードしたことあるリストに追加
