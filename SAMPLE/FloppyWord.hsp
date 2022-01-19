@@ -1,3 +1,6 @@
+;#include "../mod_TimerRepeat.hsp"
+;#include "../a2d+AlphaLayer.hsp"
+
 #packopt name "Floppy-Word"
 #packopt hide 1
 #pack "baku.bmp"   ; hsptv‘fŞF”š”­‰æ‘œ
