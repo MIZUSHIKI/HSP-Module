@@ -1,6 +1,6 @@
 //ÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQÅQ
 //ÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅPÅP
-// Object Pos Module                                                    Ver. 1.0
+// Object Pos Module                                                    Ver. 1.1
 //==============================================================================
 // égÇ¢ï˚
 //   1. #include "ObjPosMod.hsp"
@@ -2617,7 +2617,7 @@ return
 	;è⁄ç◊ÇÉÇÉWÉÖÅ[ÉãïœêîÇ…ãLâØ
 	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "input", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
 	modvID = stat
-	Set_opt1_@ObjPosModDataClass objData.modvID, p1
+	Set_opt1_@ObjPosModDataClass objData.modvID, ""+p1
 	return st
 
 //--------------------------------------
