@@ -1,0 +1,221 @@
+/* /////////////////////////////////////////////////////////////////////////////
+
+グループボックス モジュール(mod_grpbox.hsp)
+--------------------------------------------------------------------------------
+%dll ; モジュール名 :
+mod_grpbox
+%ver ; バージョン :
+1.0
+%date ; 更新日 :
+2022/4/1
+%author ; 著作者 :
+MIZUSHIKI
+
+*/ /////////////////////////////////////////////////////////////////////////////
+#ifndef __mod_grpbox___
+#define __mod_grpbox___
+
+#module mod_grpbox
+
+#uselib "user32.dll"
+#func GetWindowLong "GetWindowLongA" int,int
+#func SetWindowLong "SetWindowLongA" int,int,int
+#func DrawEdge "DrawEdge" int, int, int, int
+#func InvalidateRect "InvalidateRect" int,int,int
+#func GetWindowRect "GetWindowRect" int,int
+#func ScreenToClient "ScreenToClient" int, int
+#func ShowWindow "ShowWindow" int, int
+#uselib "gdi32"
+#func GetStockObject "GetStockObject" int
+#func GetTextExtentPoint32 "GetTextExtentPoint32A" int,sptr,int,var
+
+	#const GWL_EXSTYLE       0xFFFFFFEC
+	#const WS_EX_TRANSPARENT 0x00000020
+	
+	#const BM_SETSTYLE       0x00F4
+	#const BS_GROUPBOX       0x0007
+
+	#define BDR_SUNKENOUTER 0x0002
+	#define BDR_RAISEDINNER 0x0004
+	
+	#define EDGE_ETCHED     (BDR_SUNKENOUTER | BDR_RAISEDINNER)
+	
+	#define BF_LEFT         0x0001
+	#define BF_TOP          0x0002
+	#define BF_RIGHT        0x0004
+	#define BF_BOTTOM       0x0008
+
+#deffunc grpbox str p1, int p2, int p3
+
+	x = p2 : y = p3
+	mref bmscr,67
+	ox = bmscr.29 : oy = bmscr.30 : py = bmscr.31 //object size
+	if x = 0 : x = ox
+	if y = 0 : y = oy
+	objsize x,y, py
+	chkbox p1, dummy
+	st = stat
+	sendmsg objinfo(st,2), BM_SETSTYLE, BS_GROUPBOX, 1
+	GetWindowLong objinfo(st,2), GWL_EXSTYLE
+	SetWindowLong objinfo(st,2), GWL_EXSTYLE, stat | WS_EX_TRANSPARENT
+
+	objsize ox,oy,py ;元に戻す
+	return st
+
+#deffunc edgebox str p1, int p2, int p3
+	st = stat
+	x = p2 : y = p3
+	bdr = EDGE_ETCHED
+	mref bmscr,67
+	ox = bmscr.29 : oy = bmscr.30 : py = bmscr.31 //object size
+	if x = 0 : x = ox
+	if y = 0 : y = oy
+	ori_ = ginfo_cx, ginfo_cy, ginfo_cx + x, ginfo_cy + y
+	;フォントの記憶
+	if stockObjects = 0 : stockObjects.0 = GetStockObject(17), GetStockObject(13), GetStockObject(12), GetStockObject(11), GetStockObject(10) : stockObjectIDs = 17, 13, 12, 11, 10
+	;まずsysfont設定か確認する
+	c = -1 : repeat length.stockObjects :if( bmscr.38 = stockObjects.cnt ){ c = cnt : break } : loop
+	if c ! -1 {
+		//sysfont
+		lfFaceName = "sysfont"
+		f_style = stockObjectIDs( c )
+		f_size = 0
+		objcolRef = 0
+		f_effsize = 0
+	}else {
+		//font
+		#if __hspver__ < $3603
+			objcolRef = 0
+			f_effsize = 0
+		#else
+			objcolRef = bmscr.86
+			f_effsize = bmscr.87
+		#endif
+		#if __hspver__ < $3607
+			f_size = -bmscr.49
+			f_style = (bmscr.53>=700)|peek(bmscr.54, 0)<<1|peek(bmscr.54, 1)<<2|peek(bmscr.54, 2)<<3|(peek(bmscr.55, 2)>0)<<4
+			sdim lfFaceName
+			dupptr lfFaceName, varptr(bmscr.56), 32, 2
+		#else
+			dupptr logfont, bmscr.49, 60, 4
+			f_size = -logfont.0
+			f_style = (logfont.4>=700)|peek(logfont.5, 0)<<1|peek(logfont.5, 1)<<2|peek(logfont.5, 2)<<3|(peek(logfont.6, 2)>0)<<4
+			sdim lfFaceName
+			getstr lfFaceName, logfont, 28
+		#endif
+	}
+	;システムフォントに変更
+	sysfont 17
+	dim sz, 2
+	g_mesx = 0 : g_mesy = 0
+	p1_ = p1
+	split p1_ ,"\n", res ;複数行対応
+	repeat stat
+		GetTextExtentPoint32 hdc, res(cnt), strlen(res(cnt)), sz
+		if g_mesx < sz(0) : g_mesx = sz(0)
+		if sz(1) < py : sz(1) = py
+		g_mesy += sz(1)
+	loop
+	ori_(1) += g_mesy / 2
+	
+	rect = ori_(0), ori_(1), ori_(0) + 7, ori_(3)
+	DrawEdge hdc, varptr( rect ), bdr, BF_LEFT | BF_TOP ;左上描画
+	pos ori_(0) + 7 + 2, ori_(1) - g_mesy / 2
+	mes p1
+	rect = ori_(0) + 7 + 2 + g_mesx + 2, ori_(1), ori_(2), ori_(3) : grfFlags =  BF_TOP | BF_RIGHT
+	if rect(0) >= rect(2) : rect = ori_(0), ori_(1) + g_mesy / 2, ori_(2), ori_(3) : grfFlags = BF_RIGHT
+	DrawEdge hdc, varptr( rect ), bdr, grfFlags ;右上描画
+	rect(0) = ori_(0) : rect(2) = ori_(2), ori_(3)
+	DrawEdge hdc, varptr( rect ), bdr, BF_RIGHT | BF_BOTTOM ;右下描画
+
+	redraw 1, ori_(0), ori_(1), ori_(2), ori_(3)
+	;元に戻す
+	pos ori_(0), ori_(1)
+	;フォントも
+	if lfFaceName = "sysfont" {
+		sysfont f_style
+	}else {
+		#if __hspver__ < $3603
+			font lfFaceName, f_size, f_style
+		#else
+			objcolor objcolRef & $FF, (objcolRef>>8) & $FF, (objcolRef>>16) & $FF
+			font lfFaceName, f_size, f_style, f_effsize
+		#endif
+	}
+	return st
+	
+#global
+#endif
+
+/* // hs ファイル // ///////////////////////////////////////////////////////////
+
+%type
+拡張命令
+%note
+mod_grpbox.hspをインクルードすること。
+%url
+https://github.com/MIZUSHIKI/HSP-Module
+%port
+Win
+
+
+%index
+grpbox
+グループボックス表示
+
+%prm
+"strings",p1,p2
+"strings" : 指定する文字列
+p1,p2 : グループボックスのサイズ（ドット単位）
+
+%inst
+オブジェクトとしてグループボックスを配置します。 p2,p3で大きさを指定して、場所はカレントポジションからになります。 p2,p3が省略された場合は、objsizeで指定されたサイズになります。
+
+ボタン等と同様に、命令後はシステム変数statにオブジェクトIDが代入されます。
+"strings"の文字列はobjprmを使用して変更できます。
+
+%sample
+#include "mod_grpbox.hsp"
+
+	syscolor 15 :boxf :color
+	
+	pos 100,100
+	grpbox "グループボックス", 150,100
+	
+	stop
+	
+%href
+edgebox
+
+%group
+オブジェクト制御命令
+
+%index
+edgebox
+グループボックスのようなタイトル付きの枠を描画
+
+%prm
+"strings",p1,p2
+"strings" : 指定する文字列
+p1,p2 : エッジボックスのサイズ（ドット単位）
+
+%inst
+DrawEdgeというWin32API描画関数を用いてグループボックスのようなタイトル付きの枠を描画します。 p2,p3で大きさを指定して、場所はカレントポジションからになります。 p2,p3が省略された場合は、objsizeで指定されたサイズになります。
+
+"strings"のタイトル文字列の色はcolor命令で指定することができます。
+%sample
+#include "mod_grpbox.hsp"
+
+	pos 100,100
+	edgebox "エッジボックス", 150,100
+	
+	stop
+
+
+%href
+grpbox
+
+%group
+プログラム制御命令
+
+*/ // hs ファイル // ///////////////////////////////////////////////////////////
