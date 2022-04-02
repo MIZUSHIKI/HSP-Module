@@ -1,59 +1,356 @@
+/* /////////////////////////////////////////////////////////////////////////////
+
+#netincludeモジュール
+--------------------------------------------------------------------------------
+%dll ; モジュール名 :
+mod_netinclude
+%ver ; バージョン :
+2.0
+%date ; 更新日 :
+2022/4/1
+%author ; 著作者 :
+MIZUSHIKI
+
+*/ /////////////////////////////////////////////////////////////////////////////
+#ifndef __mod_netinclude__
+#define __mod_netinclude__
 ;メインスクリプト内の #netinclude しか認識しません。
 #ifdef _debug
 //デバッグ時のみ #netinclude 処理を実行
 #include "hspinet.as" ;デバッグ時の2つのincludeは我慢してもらう。しか・・・
 #include "mod_regexp.as"
-#define netinclude(%1,%2=_) addition %1* %2
+#define netinclude(%1) addition %1*
 	exist"hsptmp" //#addition(#include) の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く。(命令が成立すると右側が無視される) 
-	if strsize>0 { ;なるべく文字数を削減する (min版で1行1024文字に抑える)
+	if strsize>0{ ;なるべく文字数を削減する (min版で1行1024文字に抑え たかったけど無理なった)
 		t@_@="":d@_@=dir_exe+"\\common\\" ;初期化
-		notesel t@_@:noteload "hsptmp":noteunsel ;hsptmp読み込み
-		matches t@_@,t@_@,"#netinclude\\s*\"(.+?)\"\\s*/\\s*,*\\s*(\\w*)" ;#netinclude部分を読み取り
+		notesel t@_@:noteload"hsptmp":noteunsel ;hsptmp読み込み
+		matches t@_@,t@_@,"#net\include\\s*\"((?:net/)?)(.+?)\"\\s*/" ;#netinclude部分を読み取り
 		repeat stat
-			r@_@=""
-			if t@_@.cnt.2="common"{r@_@=d@_@} ;commonの場合
-			exist r@_@+t@_@.cnt.1 ;ファイルがダウンロード済みなら何もしない
+			exist d@_@+t@_@.cnt.1+t@_@.cnt.2 ;ファイルがダウンロード済みなら何もしない
 			t@_@.cnt="0" ;ダウンロードしない
-			if strsize<0{ ;t@_@(cnt,0);ダウンロードフラグ / n,m;カウント 
-				if r@_@!d@_@{t@_@.cnt="1":n@_@++}else{t@_@.cnt="2":m@_@++}
+			if strsize<0{ ;t@_@(cnt,0);ダウンロードフラグ / n;カウント 
+				t@_@.cnt="":n@_@++
 			}
 		loop
-		if n@_@+m@_@>0{
-			a@_@=dir_cur+"\\\n\nに\n\n"
-			repeat 2,1
-				if n@_@=0&cnt=1{continue} ;カレントへのダウンロードが無い
-				if m@_@>0&cnt=2{ ;commonへのダウンロード
-					if n@_@!0{a@_@+="\nをダウンロード、\n------\n\n"}else{a@_@=""}
-					a@_@+=d@_@+"\n\nに\n\n"
+		if n@_@>0{
+			a@_@=d@_@+"\n\nに\n\n"
+			foreach t@_@
+				if t@_@.cnt="0"{continue}
+				if t@_@.cnt.1!""{
+					if n@_@!0{
+						netinit ;hspinetの初期化
+						neturl"https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php?req=data"
+						netrequest_get""
+						repeat
+							netexec n@_@ ;結果待ちのためのループ
+							if n@_@{break}
+							await 50
+						loop
+						n@_@=0
+						sdim b@_@,netgetv_size() ;バッファを確保(実際に受信した量より多めに確保される)
+						netgetv_data b@_@ ;受信データを代入
+						c@_@=getpath(b@_@,16)
+					}
+					v@_@=instr(c@_@,0,getpath("\n"+t@_@.cnt.2+"\t",16))
+					if v@_@<0{
+						t@_@.cnt="0":continue
+					}
+					getstr t@_@.cnt,b@_@,v@_@+strlen("\n"+t@_@.cnt.2+"\t")
+					a@_@+="・net/(->"+t@_@.cnt+")"+t@_@.cnt.2+"\n"
+				}else{
+					a@_@+="・"+t@_@.cnt.2+"\n"
 				}
-				r@_@=""+cnt ;commonかそうでないかでt@_@(cnt,0)ダウンロードフラグが違う
-				foreach t@_@:if t@_@.cnt!r@_@{continue}:a@_@+="・"+t@_@.cnt.1+"\n":loop
-			loop			
+			loop
+			if a@_@=d@_@+"\n\nに\n\n"{dialog"モジュールデータが見つかりませんでした",1,"#net\include":end}
 			dialog a@_@+"\nをダウンロードします。",2,"#net\include" ;\はmin版の時のmatches検索回避の為
 			if stat=6{
-				netinit ;hspinetの初期化
+				if n@_@!0{netinit} ;hspinetの初期化
 				foreach t@_@
-					if t@_@.cnt="0"{continue}
-					c@_@=dir_cur ;カレントディレクトリ保存
-					if t@_@.cnt="2"{chdir d@_@}
-					split t@_@.cnt.1,"/",r@_@ ;URL(ディレクトリ)構造分解
-					if stat>0 {
+					if t@_@.cnt="0"{continue}                              ; t@_@.cnt.0 = "0" or "netmod_REPOS" or ""
+					chdir d@_@                                             ; t@_@.cnt.1 =        "net/"         or ""
+					t@_@.cnt.1+=t@_@.cnt.2                                 ; t@_@.cnt.2 =        "ModName.hsp"  or "REPOS/FLD/ModName.hsp"
+					split t@_@.cnt.1,"/",v@_@ ;URL(ディレクトリ)構造分解
+					if stat>0{
 						repeat stat-1 ;深い階層を作っていく
-							dirlist a@_@,r@_@.cnt,5 ;フォルダ存在確認
-							if stat=0{mkdir r@_@.cnt} ;フォルダが存在しないなら作る
-							chdir r@_@.cnt ;カレントディレクトリを1階層深くに移動
+							dirlist a@_@,v@_@.cnt,5 ;フォルダ存在確認
+							if stat=0{mkdir v@_@.cnt} ;フォルダが存在しないなら作る
+							chdir v@_@.cnt ;カレントディレクトリを1階層深くに移動
 						loop
 					}
-					neturl "https://raw.githubusercontent.com/"+getpath(t@_@.cnt.1,32) ;GitHubから
-					netload getpath(t@_@.cnt.1,8) ;HSPモジュールをダウンロード
-					chdir c@_@ ;元のカレントディレクトリに戻す
+					t@_@.cnt=getpath(t@_@.cnt,16)+t@_@.cnt.2
+					neturl"https://raw.githubusercontent.com/"+getpath(t@_@.cnt,32) ;GitHubから
+					netload getpath(t@_@.cnt,8) ;HSPモジュールをダウンロード
 				loop
-				dialog"再実行して下さい":end ;ダウンロードしたらもう一度実行してもらう
+				dialog"ダウンロードしました。\nHSPを再実行して下さい。",,"#net\include":end ;ダウンロードしたらもう一度実行してもらう
 			}
 		}
 		sdim t@_@ ;大きめ(?)の変数を初期化
 	}
 #else
 //実行ファイル作成時はただの #include になる
-#define netinclude(%1,%2=_) include %1
+#define netinclude(%1) include %1
 #endif
+//↑ minバージョンと同じ内容
+#ifdef _debug
+#module mod_netinclude
+#define NETMOD_PHPFILE "https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php"
+
+#deffunc netinclude_GetData
+	netinit@ ;hspinetの初期化
+	neturl@ NETMOD_PHPFILE + "?req=data"
+	netrequest_get@ ""
+	repeat
+		netexec@ res ;結果待ちのためのループ
+		if res{break}
+		await 50
+	loop
+	sdim buf, netgetv_size@() ;バッファを確保
+	netgetv_data@ buf ;受信データを代入
+	screen ginfo(25)
+	title "#netinclude - netinclude_GetData"
+	mesbox buf, ginfo_dispx, ginfo_dispy, 12
+	stop
+	return
+#deffunc netinclude_PostModule str p1
+	p1_ = p1
+	urlencode@ ep1, p1_
+	netinit@ ;hspinetの初期化
+	neturl@ NETMOD_PHPFILE + "?req=post&hsp="+ep1
+	netrequest_get@ ""
+	repeat
+		netexec@ res ;結果待ちのためのループ
+		if res{break}
+		await 50
+	loop
+	sdim buf, netgetv_size@() ;バッファを確保
+	netgetv_data@ buf ;受信データを代入
+	screen ginfo(25)
+	title "#netinclude - netinclude_PostModule"
+	if strmid( buf, 0, 7 ) = "false: " {
+		getstr errorMessage, buf, 7, ';'
+		switch errorMessage
+		case "not_found__datafile"
+			buf+="\n\nデータファイルが見つかりませんでした。（HSP3NetModules管理者に問い合わせください。）"
+			swbreak
+		case "not_found__module_file"
+			buf+="\n\nGitHub内で指定されたモジュールを見つけることができませんでした。"
+			swbreak
+		case "bad__request"
+			buf+="\n\nリクエスト文字列が正しくありません。（HSP3NetModules管理者に問い合わせください。）"
+			swbreak
+		case "bad__module_name"
+			buf+="\n\nモジュール名に登録できない文字が入っています。(または、拡張子に.hsp/.asが使われていません。)"
+			swbreak
+		case "arledy__module_name"
+			buf+="\n\nすでにそのモジュール名は登録されています。モジュール名を変更して登録してください。"
+			swbreak
+		case "failure__update"
+			buf+="\n\nアップデートに失敗しました。"
+		swend
+	}
+	mesbox buf, ginfo_dispx, ginfo_dispy, 12
+	stop
+	return
+#deffunc netinclude_DeleteModule str p1
+	p1_ = p1
+	urlencode@ ep1, p1_
+	netinit@ ;hspinetの初期化
+	neturl@ NETMOD_PHPFILE + "?req=delete&hsp="+ep1
+	netrequest_get@ ""
+	repeat
+		netexec@ res ;結果待ちのためのループ
+		if res{break}
+		await 50
+	loop
+	sdim buf, netgetv_size@() ;バッファを確保(実際に受信した量より多めに確保される)
+	netgetv_data@ buf ;受信データを代入
+	screen ginfo(25)
+	title "#netinclude - netinclude_DeleteModule"
+	if strmid( buf, 0, 7 ) = "false: " {
+		getstr errorMessage, buf, 7, ';'
+		switch errorMessage
+		case "not_found__datafile"
+			buf+="\n\nデータファイルが見つかりませんでした。（HSP3NetModules管理者に問い合わせください。）"
+			swbreak
+		case "found__module_file"
+			buf+="\n\nモジュールファイルが見つかりました。netinclueデータから削除したい場合はモジュールファイルをGitHubから削除する必要があります。"
+			swbreak
+		case "bad__request"
+			buf+="\n\nリクエスト文字列が正しくありません。（HSP3NetModules管理者に問い合わせください。）"
+			swbreak
+		case "bad__module_name"
+			buf+="\n\nモジュール名に登録できない文字が入っています。"
+			swbreak
+		case "not_found__module_name"
+			buf+="\n\nデータファイルの中に指定されたモジュール名が見つかりませんでした。"
+			swbreak
+		case "bad__github_access"
+			buf+="\n\nデータの特殊削除をしようとしましたが、GitHubのアクセスまたは情報の取得に失敗しました。"
+			swbreak
+		swend
+	}
+	mesbox buf, ginfo_dispx, ginfo_dispy, 12
+	stop
+	return
+#global
+#endif
+#endif
+
+
+/* // hs ファイル // ///////////////////////////////////////////////////////////
+
+%type
+拡張命令
+%note
+mod_netinclude.hspをインクルードすること。
+%url
+https://github.com/MIZUSHIKI/HSP-Module
+%port
+Win
+
+
+%index
+#netinclude
+インターネットを使用してGitHubからモジュールをダウンロード
+
+%prm
+"module_name"/
+"module_name"/ : "モジュール名文字列"/
+
+%inst
+p1で指定したモジュールがcommonフォルダに存在しない場合、GitHubからダウンロードします。
+すでにモジュールがダウンロードされている場合は#includeされます。
+p1モジュール名文字列の末尾には必ず / (スラッシュ) を記述する必要があります。
+
+HSP3NetModulesデータベースに登録してあるモジュールはGitHubのURLの一部を省略して「net/」と書くことで利用ができます。
+
+#netinclude "net/mod_netinclude.hsp"/
+
+HSP3NetModulesデータベースに登録されていないものもリポジトリ名まで入力することでダウンロードできます。
+
+#netinclude "MIZUSHIKI/HSP-Module/master/mod_netinclude.hsp"/
+(https://raw.githubusercontent.com/MIZUSHIKI/HSP-Module/master/mod_netinclude.hsp : GitHub-RawファイルURL)
+
+HSP3NetModulesデータベースに何が登録されているかは netinclude_GetData で取得できます。
+また、netinclude_PostModule命令で誰でも自由にデータベースにモジュールを登録することができます。
+
+※ 注意点
+html{
+<ul>
+<li>#netinclude はHSP実行(F5)を開始するメインスクリプト上でしか動きません。</li>
+<li>#netincludeを使用するとメインスクリプト内で複数行コメントアウトが使用できなくなります。（抜け道裏技あり）</li>
+</ul>
+}html
+
+%sample
+#include "mod_netinclude.hsp"
+
+#netinclude "net/ObjPosMod.hsp"/
+
+//【下記は裏技】#netinclude後に、この2行があれば複数行コメントが使えるようになります（「* /」はコメントアウト末尾の形に直してください）
+#undef netinclude /* * /
+#ifndef netinclude
+
+%href
+netinclude_GetData
+netinclude_PostModule
+netinclude_DeleteModule
+
+%group
+プログラム制御命令
+
+%index
+netinclude_GetData
+HSP3NetModulesデータベースに登録されているモジュール情報を表示
+
+%prm
+
+%inst
+HSP3NetModulesデータベースに登録されているモジュール情報をダウンロードして画面に表示
+スクリプトはこの行でstopされます。
+
+%sample
+#include "mod_netinclude.hsp"
+
+netinclude_GetData
+
+%href
+#netinclude
+netinclude_PostModule
+netinclude_DeleteModule
+
+%group
+プログラム制御命令
+
+%index
+netinclude_PostModule
+HSP3NetModulesデータベースにモジュール情報を登録
+
+%prm
+"GitHub_URL/module_name"/
+"GitHub_URL/module_name"/ : "GitHubのURLを含めたモジュール名文字列"/
+
+%inst
+HSP3NetModulesデータベースにモジュール情報を登録します。
+
+例えば、GitHubのRawファイルURLが
+https://raw.githubusercontent.com/MIZUSHIKI/HSP-Module/master/SAMPLE/FloppyWord.hsp
+の場合、
+netinclude_PostModule "MIZUSHIKI/HSP-Module/master/SAMPLE/FloppyWord.hsp"
+で登録すると末尾の「FloppyWord.hsp」がモジュール名データとして登録され、「MIZUSHIKI/HSP-Module/master/SAMPLE/」までが省略対象とされます。
+上記の場合、
+#netinclude "net/FloppyWord.hsp"/
+でダウンロードさせることができます。
+
+この登録するモジュール名(省略する部分)は、二重のスラッシュを記述することで制御できます。
+例えば、
+netinclude_PostModule "MIZUSHIKI/HSP-Module/master//SAMPLE/FloppyWord.hsp"
+とした場合は「SAMPLE/FloppyWord.hsp」がモジュール名データとして登録され、「MIZUSHIKI/HSP-Module/master/」までが省略対象となり、
+#netinclude "net/SAMPLE/FloppyWord.hsp"/
+でダウンロードさせることができます。
+
+%sample
+#include "mod_netinclude.hsp"
+
+netinclude_PostModule "MIZUSHIKI/HSP-Module/master/mod_netinclude.hsp"
+//登録に成功するとレポート画面に「success」と表示されます。
+
+%href
+#netinclude
+netinclude_GetData
+netinclude_DeleteModule
+
+%group
+プログラム制御命令
+
+%index
+netinclude_DeleteModule
+HSP3NetModulesデータベースからモジュール情報を削除
+
+%prm
+"GitHub_URL/module_name"/
+"GitHub_URL/module_name"/ : "GitHubのURLを含めたモジュール名文字列"/
+
+%inst
+HSP3NetModulesデータベースからモジュール情報を削除します。
+ただし、netinclude_DeleteModuleを実行する前にGitHub内の該当するモジュールを削除する必要があります。
+
+もしくは、モジュールが置いてあるリポジトリの説明欄(About項目のDescription)に一時的に「netinclude_DELETE=モジュール名」と書いて、netinclude_DeleteModuleを実行することでも削除することができます。
+
+これらの条件が付いているのは、いたずら目的等で勝手にデータベースから情報を削除されてしまうことを防ぐためです。
+
+%sample
+#include "mod_netinclude.hsp"
+
+netinclude_DeleteModule "MIZUSHIKI/HSP-Module/master/mod_netinclude.hsp"
+//削除に成功するとレポート画面に「success」と表示されます。
+
+%href
+#netinclude
+netinclude_GetData
+netinclude_PostModule
+
+%group
+プログラム制御命令
+
+*/ // hs ファイル // ///////////////////////////////////////////////////////////
