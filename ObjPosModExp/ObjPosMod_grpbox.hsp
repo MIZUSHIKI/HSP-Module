@@ -1,0 +1,632 @@
+//------------------------------------------------------------------------------
+// Object Pos Module 拡張モジュール : ObjPosMod_grpbox.hsp               Ver.1.0
+//------------------------------------------------------------------------------
+#ifdef _debug
+#ifndef __ObjPosMod_grpbox__
+#define __ObjPosMod_grpbox__
+
+#include "mod_grpbox.hsp" ;モジュール内部では#ifndef等で一度だけしか#includeしないようになっている必要がある
+
+Set_ObjPosModExp@ObjPosMod_grpbox
+
+#module ObjPosMod_grpbox
+#deffunc Set_ObjPosModExp@ObjPosMod_grpbox
+	//------------------------------------------------------------------------------
+	// ObjPosModExp_AddObjType p1,p2,p3,p4,p5,p6,p7,p8
+	//  p1 :拡張オブジェクトが記述されているhspファイル名
+	//  p2 :拡張オブジェクトの名前[#deffunc名] (複数deffuncまたいで使用しているlineやmesをObjPosModのリストに出したくない場合は「拡張オブジェクト名|無視deffunc1|無視deffunc2|・・・」とする)
+	//  p3 :拡張オブジェクトがカレントポジションの影響を受ける又は命令後にカレントポジションが変わる(+1), objsize命令の影響を受ける(+2), font命令の影響を受ける(+4)
+	//  p4 :ObjPosModでのオブジェクト表示タイプ(0:winobjタイプ[enable], 1:bgscrタイプ[半透明])、 描画リフレッシュ処理が必要なとき(+2:追加オプション[ほぼGroupBox用])
+	//  p5 :エディタ書き換え処理を登録するラベル
+	//  p6 :ObjPosModのリストの備考に何を書くかを登録するラベル(省略可)
+	//  p7 :オブジェクトをマウスで選択するときの特殊条件を登録するラベル(省略可)
+	//  p8 :オブジェクトサイズ変更時に独自描画が必要な場合に登録するラベル(省略可)
+	//------------------------------------------------------------------------------
+	ObjPosModExp_AddObjType "mod_grpbox.hsp", "grpbox", 3, 2, *RewriteSc_grpbox, *ListDetail_grpbox, *HitTest_grpbox ,
+	ObjPosModExp_AddObjType "mod_grpbox.hsp", "edgebox", 7, 1, *RewriteSc_edgebox, *ListDetail_edgebox, *HitTest_edgebox, *RedrawObj_edgebox
+	return
+
+	//--------------------------------------
+	// 関数定義(API関数)
+	//--------------------------------------
+	#uselib "user32"
+	;#func GetWindowLong "GetWindowLongA" int,int 
+	;#func SetWindowLong "SetWindowLongA" int,int,int
+	#func DrawEdge "DrawEdge" int, int, int, int
+	#func InvalidateRect "InvalidateRect" int,int,int
+	#func ShowWindow "ShowWindow" int,int
+	#uselib "gdi32"
+	#func GetStockObject "GetStockObject" int
+	#func GetTextExtentPoint32 "GetTextExtentPoint32A" int,sptr,int,var
+	
+	//--------------------------------------
+	// 変数名定義(モジュール内使用時に省略する為)
+	//--------------------------------------
+	#define objData                    objData@ObjPosMod
+	#define mod                        objData@ObjPosMod
+	#define fullScript_buf             fullScript_buf@ObjPosModDataClass
+	#define index_toFunc               index_toFunc@ObjPosModDataClass
+	#define index_lineHead             index_lineHead@ObjPosModDataClass
+	#define syori_count                syori_count@ObjPosModDataClass
+	#define syori_line                 syori_line@ObjPosModDataClass
+	#define syori_index_lineHead       syori_index_lineHead@ObjPosModDataClass
+	#define syori_index_fromLineHead   syori_index_fromLineHead@ObjPosModDataClass
+	#define syori_delete_len           syori_delete_len@ObjPosModDataClass
+	#define syori_write                syori_write@ObjPosModDataClass
+	#define funcnameChangesCurrent_    funcnameChangesCurrent_@ObjPosModDataClass
+	#define scopeBreakerReg_before_    scopeBreakerReg_before_@ObjPosModDataClass
+	#define scopeBreakerReg_after_pos_ scopeBreakerReg_after_pos_@ObjPosModDataClass
+	#define blankWinID                 blankWinID@ObjPosMod
+	#define bgColorR                   bgColorR@ObjPosMod
+	#define bgColorG                   bgColorG@ObjPosMod
+	#define bgColorB                   bgColorB@ObjPosMod
+		
+	//--------------------------------------
+	// 関数名定義(モジュール内使用時に省略する為)
+	//--------------------------------------
+	#define SetParent                             SetParent@ObjPosMod
+	#define GetWindowLong                         GetWindowLong@ObjPosMod
+	#define SetWindowLong                         SetWindowLong@ObjPosMod
+	#define SetLayeredWindowAttributes            SetLayeredWindowAttributes@ObjPosMod
+	#define NG_BlackOrWhite                       NG_BlackOrWhite@ObjPosMod
+	#define CheckInited                           CheckInited@ObjPosMod
+	#define GetOneLineScript_TextReplacedDummy    GetOneLineScript_TextReplacedDummy@ObjPosModDataClass
+	#define GetData_BeforeFunc_SubMatch           GetData_BeforeFunc_SubMatch@ObjPosModDataClass
+	#define NeedBackToOriginal_AfterFunc_SubMatch NeedBackToOriginal_AfterFunc_SubMatch@ObjPosModDataClass
+	#define TanrakuOR                             TanrakuOR@ObjPosMod
+	#define IsInsideExpObj                        IsInsideExpObj@ObjPosModExpClass
+	
+	//--------------------------------------
+	// モジュール変数名定義(モジュール内使用時に省略する為)
+	//--------------------------------------
+	#define objHwnd_  objHwnd_@ObjPosModDataClass
+	#define winID_    winID_@ObjPosModDataClass
+	#define pos_x0_   pos_x0_@ObjPosModDataClass
+	#define pos_x1_   pos_x1_@ObjPosModDataClass
+	#define pos_x2_   pos_x2_@ObjPosModDataClass
+	#define pos_y0_   pos_y0_@ObjPosModDataClass
+	#define pos_y1_   pos_y1_@ObjPosModDataClass
+	#define pos_y2_   pos_y2_@ObjPosModDataClass
+	#define size_w0_  size_w0_@ObjPosModDataClass
+	#define size_w1_  size_w1_@ObjPosModDataClass
+	#define size_w2_  size_w2_@ObjPosModDataClass
+	#define size_h0_  size_h0_@ObjPosModDataClass
+	#define size_h1_  size_h1_@ObjPosModDataClass
+	#define size_h2_  size_h2_@ObjPosModDataClass
+	#define colorR_   colorR_@ObjPosModDataClass
+	#define colorG_   colorG_@ObjPosModDataClass
+	#define colorB_   colorB_@ObjPosModDataClass
+	#define hspLine_  hspLine_@ObjPosModDataClass
+	#define objed_cx_ objed_cx_@ObjPosModDataClass
+	#define objed_cy_ objed_cy_@ObjPosModDataClass
+	#define opt1_     opt1_@ObjPosModDataClass
+	#define opt2_     opt2_@ObjPosModDataClass
+	#define opt3_     opt3_@ObjPosModDataClass
+	
+	//--------------------------------------
+	// 定数定義(モジュール内使用時に省略する為)
+	//--------------------------------------
+	#define GWL_STYLE       GWL_STYLE@ObjPosMod
+	#define GWL_EXSTYLE     GWL_EXSTYLE@ObjPosMod
+	#define WS_POPUP        WS_POPUP@ObjPosMod
+	#define WS_CHILD        WS_CHILD@ObjPosMod
+	#define WS_EX_LAYERED   WS_EX_LAYERED@ObjPosMod
+	#define LWA_COLORKEY    LWA_COLORKEY@ObjPosMod
+	#define LWA_ALPHA       LWA_ALPHA@ObjPosMod
+	#define WIN_TYPE_BUFFER WIN_TYPE_BUFFER@ObjPosMod
+	#const  INT_MAX         2147483647
+	//(他にも必要なものがあったら同様に記述して使用する)
+	
+//------------------------------------------------------------------------------
+// grpbox
+//------------------------------------------------------------------------------
+//--------------------------------------
+// 命令上書きと詳細データの記憶
+//  -> モジュール型変数objData(モジュール名:ObjPosModDataClass)に各種データを登録する
+//======================================
+// ObjPosMod.hspの『HSPの命令をObjPosMod用に置換』項目のオブジェクト書き換えを参照して、真似て書いてください。
+//--------------------------------------
+#undef grpbox
+#define global grpbox(%1,%2=0,%3=0) ScFile@ObjPosMod=__file__ : ScLine@ObjPosMod=__line__ : _grpbox@ObjPosMod_grpbox %1,%2,%3
+#deffunc _grpbox@ObjPosMod_grpbox str p1, int p2, int p3
+	ScFile = ScFile@ObjPosMod : ScLine = ScLine@ObjPosMod
+	x = p2 : y = p3
+	mref bmscr,67
+	if x = 0 : x = bmscr.29 ;BMSCR_ox //object size
+	if y = 0 : y = bmscr.30 ;BMSCR_oy
+	;記録しなくて良い場合は普通にgrpboxを実行してreturn
+	; if TanrakuOR() :それぞれの項目ごとにifして条件を満たした(0以外になった)ら以降の項目は無視して(処理せず)条件式を終わらせる
+	if TanrakuOR( NG_BlackOrWhite( ginfo_sel ) , IsInsideExpObj(ScFile,ScLine) ) : grpbox@ObjPosMod_grpbox p1,x,y : return ;※
+	;ObjPosModモジュールが初期化されているか確認（されていなかったら内部で初期化が実行される）
+	CheckInited ginfo_sel
+	
+	mref bmscr,67
+	posi = ginfo_cx, ginfo_cy
+	size = x, y
+	objsize_py = bmscr.31
+	;grpboxを実行
+	grpbox@ObjPosMod_grpbox p1,x,y ;※ //この中でScFile@ObjPosModとScLine@ObjPosModの中身が変わってしまう
+	st=stat
+	
+	;詳細をモジュール型変数に記憶
+	// #modinit int _winid, int _winHwnd, int _objID, int _objHwnd, str _objType, int _pos_x0, int _pos_y0, int _size_w0, int _size_h0, int _objed_cx, int _objed_cy, int _objsz_py, int _colorR, int _colorG, int _colorB, str _hspFile, int _hspLine
+	// winID        :オブジェクトを配置したウィンドウのID
+	// winHwnd      :オブジェクトを配置したウィンドウのhWnd
+	// objID        :オブジェクトのID
+	// objHwnd      :オブジェクトのhWnd
+	// objType      :オブジェクトのタイプ("mes","button"等)
+	// pos_x0       :オブジェクトの位置x
+	// pos_y0       :オブジェクトの位置y
+	// size_w0      :オブジェクトのサイズw
+	// size_h0      :オブジェクトのサイズh
+	// objed_cx     :オブジェクトを配置したときの元のカレントポジションx
+	// objed_cy     :オブジェクトを配置したときの元のカレントポジションy
+	// objsz_py     :オブジェクトを配置したときのobjsize p3(Y方向の最低確保行サイズ)
+	// colorR       :オブジェクトを配置したときのカレントカラーR
+	// colorG       :オブジェクトを配置したときのカレントカラーG
+	// colorB       :オブジェクトを配置したときのカレントカラーB
+	// hspFile      :オブジェクトを配置したときのHSPファイル名
+	// hspLine      :オブジェクトを配置したときのHSPファイルの行数
+	// opt1～       ;上記以外でオブジェクトに必要なデータを保存(objTypeによって変数の型が異なる)
+	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "grpbox", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
+	modvID = stat
+	Set_opt1_@ObjPosModDataClass objData.modvID, ""+p1
+	return st
+//--------------------------------------
+// （↑の※部分で元のgrpbox命令を実行したい）
+// 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
+//--------------------------------------
+#deffunc grpbox@ObjPosMod_grpbox str p1, int p2, int p3
+
+	x = p2 : y = p3
+	mref bmscr,67
+	ox = bmscr.29 : oy = bmscr.30 : py = bmscr.31 //object size
+	if x = 0 : x = ox
+	if y = 0 : y = oy
+	objsize x,y, py
+	chkbox p1, dummy
+	st = stat
+	sendmsg objinfo(st,2), BM_SETSTYLE@mod_grpbox, BS_GROUPBOX@mod_grpbox, 1
+	GetWindowLong objinfo(st,2), GWL_EXSTYLE@mod_grpbox
+	SetWindowLong objinfo(st,2), GWL_EXSTYLE@mod_grpbox, stat | WS_EX_TRANSPARENT@mod_grpbox
+
+	objsize ox,oy,py ;元に戻す
+	return st
+
+//--------------------------------------
+// エディタ書き換え処理を登録するラベル
+//  -> エディタ書き換えの処理配列を追加する
+//======================================
+// #module ObjPosModDataClass
+// #deffunc local Update_MaeAtoScript_ array mod, int _id
+// ※↑この関数内で他のオブジェクトはどう処理をしているか等を調べて、真似して↓処理を作ってください
+//--------------------------------------
+*RewriteSc_grpbox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosModDataClass
+	
+	//--------------------------------------
+	// エディタ書き換えの処理配列
+	//======================================
+	// syori_line               :書き換え処理をする行番号
+	// syori_index_lineHead     :書き換え行の行頭のindex
+	// syori_index_fromLineHead :書き換える文字は行頭から何index目か
+	// syori_delete_len         :書き換えで消す文字のbyte数
+	// syori_write              :書き換えで消した後に書き込む文字
+	// (syori_count)            :処理配列のインデックス
+	//--------------------------------------
+
+	//------------------------------------------------------------------------------
+	// 書き換えの基準について（ここではmes命令で説明）
+	//==============================================================================
+	// pos : font     
+	//             ← mesと一番近いposとの間に邪魔な命令がなければ、このposのパラメータを変化させれば良い。
+	// (input)     ← 仮にカレントポジションが変わる命令が間にあったら、適切なposがないのでmes命令直前にposを書き加える必要がある。
+	// mes            
+	//             ← mesの次のカレントポジションが関わる命令までの間にposがあれば、mesの位置をいじっても後ろの命令に影響を与えない。つまりmes命令直後にカレントポジションを戻す処理を書き加える必要はない。
+	// (stop)         ┌→ 但し、(button)との間に仮に(stop)などのカレントポジションのスコープ(関わり)が切れる記述があった場合(このstopがbuttonの手前にあった場合)、posを書き加えるのは冗長になるため必要ない。
+	// (button)    ← 仮にカレントポジションに関わる命令があったら、mesのposだけ変えると後ろが全てズレてしまうので、mes命令直後にカレントポジションを戻す処理(pos)を書き加える必要がある。
+	// pos            
+	//             ※ これのfont版や、他のobjTypeのpos,objsizeも調査して、それぞれ処理方法を決定する。(boxf等、命令によってはパラメータに組み込まれたり、カレントが変更されなかったりとこれらの調査がいらない場合もある。)
+	//------------------------------------------------------------------------------
+			
+	//--------------------------------------
+	// オブジェクト自身にサイズのパラメータあり。posのみ調査する。
+	//--------------------------------------
+	; fullScript_buf :スクリプト全文
+	; index_toFunc   :命令(objType_)までのインデックス
+	; index_lineHead :命令(objType_)の書いてある行数
+	script_buf_before = strmid( fullScript_buf, 0, index_toFunc ) ;拡張オブジェクト命令の手前のスクリプトを取得
+	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX ) ;拡張オブジェクト命令から後ろのスクリプトを取得
+	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after ) ;拡張オブジェクト命令が書いてある行のスクリプト（1行だけ）。文字列やコメントを「X」で置き換えてある。
+	//pos調査
+	if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
+		//index_toFunc前のpos調査
+		GetData_BeforeFunc_SubMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+		; lineNum_before        :pos命令の書いてある行数
+		; indexLineHead_before  :pos命令のある行の行頭までのインデックス
+		; indexSubMatch1_before :pos命令のパラメータ手前までのインデックス(submatch文字列の1つ目の結果の長さを返している)
+		; lenSubMatch2_before   :pos命令のパラメータ部分の文字列長(submatch文字列の2つ目の結果の長さを返している)
+		if stat ! 0 {
+			; posが見つかった
+			syori_line( syori_count ) = lineNum_before
+			syori_index_lineHead( syori_count ) = indexLineHead_before
+			syori_index_fromLineHead( syori_count ) = indexSubMatch1_before - indexLineHead_before
+			syori_delete_len( syori_count ) = lenSubMatch2_before
+			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )
+			syori_count++
+		}else {
+			; posが見つからなかった(または見つかったが間に邪魔者がいたからそのposは使えない)ときは拡張オブジェクト命令手前にposを追記させる
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = "pos "+pos_x2_( mod.id )+", "+pos_y2_( mod.id )+" : "
+			syori_count++
+		}
+		//index_toFunc後ろのpos調査
+		if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			; mes令直後にカレントポジションを戻す処理(pos)を書き加える必要がある
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( oneLineScript_buf_after_textReplacedDummy, "^(grpbox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
+			syori_count++
+		}
+	}
+	//オブジェクト調査(size)
+	if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
+		//grpboxパラメータのサイズ指定部分を見つける
+		matches result, oneLineScript_buf_after_textReplacedDummy, "^(grpbox[ \t]+)(.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第2パラメータ以上あるとき
+		if stat > 0 {
+			_result = result(0,3)
+		}else {
+			matches result, oneLineScript_buf_after_textReplacedDummy, "^(grpbox[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータまであるとき(パラメータ全省略はできない)
+			if stat = 0 : return
+			_result = ""
+		}
+		syori_line( syori_count ) = hspLine_(mod.id)
+		syori_index_lineHead( syori_count ) = index_lineHead
+		syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1) + strlen.result(0,2)
+		syori_delete_len( syori_count ) = strlen._result
+		syori_write( syori_count ) = ", "+size_w2_( mod.id )+", "+size_h2_( mod.id )
+		syori_count++
+	}
+	return
+	
+//--------------------------------------	
+// リストの備考に何を書くかを登録するラベル
+//  -> 備考に表示したい"文字列"をreturnで返す
+//======================================
+// #module ObjPosMod
+// #deffunc local SetData_ListView int id, int _gyo
+//--------------------------------------
+*ListDetail_grpbox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosMod
+	
+	detail = opt1_( objData.id ) ;opt1_ == grpboxの文字列
+	detail = strmid( detail, 0, 64 ) ;64文字程度に押さえておく
+	return detail
+
+//--------------------------------------
+// オブジェクトをマウスで選択するときの特殊条件を登録するラベル（はみ出しを許容またはクリックできないオブジェクトのための特殊条件）
+//  -> マウスカーソル座標がどういう範囲なら掴むことにするかを決め、returnに 掴んでいるとき:1, 掴んでいないとき:0 を返す
+//======================================
+// *mHookProc@ObjPosMod
+// if mode = MODE_NONE || mode = MODE_NONE_CHANGED {
+//   case WM_L(R)BUTTONDOWN
+//     foreach objData
+//--------------------------------------
+*HitTest_grpbox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup point, point@ObjPosMod ;クリックされた時のマウスカーソル座標配列
+	dup id, id@ObjPosMod
+	
+	st = 0
+	if 0 <= point(0) && point(0) <= size_w2_( objData.id ) && 5 <= point(1) && point(1) <= size_h2_( objData.id ) {
+		if point(0) < 5 || size_w2_( objData.id )-5 < point(0) || point(1) < 10 || size_h2_( objData.id )-5 < point(1) : st = 1
+	}
+	return st ;つかみ判定
+
+
+//------------------------------------------------------------------------------
+// edgebox
+//------------------------------------------------------------------------------
+//--------------------------------------
+// 命令上書きと詳細データの記憶
+//  -> モジュール型変数objData(モジュール名:ObjPosModDataClass)に各種データを登録する
+//======================================
+// ObjPosMod.hspの『HSPの命令をObjPosMod用に置換』項目のオブジェクト書き換えを参照して、真似て書いてください。
+//--------------------------------------
+#undef edgebox
+#define global edgebox(%1,%2=0,%3=0) ScFile@ObjPosMod=__file__ : ScLine@ObjPosMod=__line__ : _edgebox@ObjPosMod_grpbox %1,%2,%3
+#deffunc _edgebox@ObjPosMod_grpbox str p1, int p2, int p3
+	ScFile = ScFile@ObjPosMod : ScLine = ScLine@ObjPosMod
+	st=stat
+	x = p2 : y = p3
+	mref bmscr, 67
+	if x = 0 : x = bmscr.29 ;BMSCR_ox //object size
+	if y = 0 : y = bmscr.30 ;BMSCR_oy
+	if TanrakuOR( bmscr.17=WIN_TYPE_BUFFER , NG_BlackOrWhite( ginfo_sel ) , isCreated@ObjPosModDataClass( objData, ScFile, ScLine, "edgebox" ) , IsInsideExpObj@ObjPosModExpClass(ScFile,ScLine) ) : edgebox@ObjPosMod_grpbox p1,x,y : return st
+	CheckInited ginfo_sel
+	
+	hw = hwnd
+	sel = ginfo_sel
+	col = ginfo_r, ginfo_g, ginfo_b
+	size = x, y
+	posi = ginfo_cx, ginfo_cy
+	cxy = ginfo_cx, ginfo_cy
+	objsize_py = bmscr.31
+	;サイズを可変にするためあらかじめウィンドウサイズぶん確保しておく
+	set = size(0), size(1)
+	if set(0) < ginfo_sx : set(0) = ginfo_sx
+	if set(1) < ginfo_sy : set(1) = ginfo_sy
+	;子ウィンドウとして貼り付け
+	bgscr blankWinID, set(0), set(1), 2, posi(0), posi(1)
+	width size(0), size(1)
+	SetParent hwnd,hw
+	SetWindowLong hwnd, GWL_STYLE, GetWindowLong(hwnd,GWL_STYLE) | WS_POPUP^WS_POPUP | WS_CHILD
+	SetWindowLong hwnd, GWL_EXSTYLE, GetWindowLong(hwnd,GWL_EXSTYLE) |WS_EX_LAYERED
+	SetLayeredWindowAttributes hwnd, bgColorR|bgColorG<<8|bgColorb<<16, 255, LWA_COLORKEY | LWA_ALPHA
+
+	;子ウィンドウにオブジェクトを描画する(edgebox実行)
+	objsize x, y, objsize_py
+	color bgColorR, bgColorG, bgColorB
+	boxf@hsp
+	color col(0), col(1), col(2)
+	sysfont 17
+	edgebox@ObjPosMod_grpbox p1,x,y ;この中でScFile@ObjPosModとScLine@ObjPosModの中身が変わってしまう
+	g_mesxy = ginfo_mesx, ginfo_mesy 
+	
+	;詳細をモジュール型変数に記憶(パラメータ詳細はObjPosMod.hspを参照)
+	newmod objData, ObjPosModDataClass, sel, hw, blankWinID, hwnd, "edgebox", posi(0),posi(1), size(0),size(1), cxy(0),cxy(1), objsize_py, col(0),col(1),col(2), ScFile, ScLine
+	modvID = stat
+	Set_opt1_@ObjPosModDataClass objData.modvID, ""+p1
+	Set_opt2_@ObjPosModDataClass objData.modvID, g_mesxy(0)
+	Set_opt3_@ObjPosModDataClass objData.modvID, g_mesxy(1)
+	
+	gsel blankWinID, 1
+	blankWinID++
+	gsel sel
+	bmscr.68 = g_mesxy(0), g_mesxy(1) ;ginfo_mesx, ginfomesyの調整
+	return st
+//--------------------------------------
+// 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
+//--------------------------------------
+#deffunc edgebox@ObjPosMod_grpbox str p1, int p2, int p3
+
+	st = stat
+	x = p2 : y = p3
+	bdr = BDR_SUNKENOUTER@mod_grpbox | BDR_RAISEDINNER@mod_grpbox ;EDGE_ETCHED
+	mref bmscr,67
+	ox = bmscr.29 : oy = bmscr.30 : py = bmscr.31 //object size
+	if x = 0 : x = ox
+	if y = 0 : y = oy
+	ori_ = ginfo_cx, ginfo_cy, ginfo_cx + x, ginfo_cy + y
+	;フォントの記憶
+	if stockObjects = 0 : stockObjects.0 = GetStockObject(17), GetStockObject(13), GetStockObject(12), GetStockObject(11), GetStockObject(10) : stockObjectIDs = 17, 13, 12, 11, 10
+	;まずsysfont設定か確認する
+	c = -1 : repeat length.stockObjects :if( bmscr.38 = stockObjects.cnt ){ c = cnt : break } : loop
+	if c ! -1 {
+		//sysfont
+		lfFaceName = "sysfont"
+		f_style = stockObjectIDs( c )
+		f_size = 0
+		objcolRef = 0
+		f_effsize = 0
+	}else {
+		//font
+		#if __hspver__ < $3603
+			objcolRef = 0
+			f_effsize = 0
+		#else
+			objcolRef = bmscr.86
+			f_effsize = bmscr.87
+		#endif
+		#if __hspver__ < $3607
+			f_size = -bmscr.49
+			f_style = (bmscr.53>=700)|peek(bmscr.54, 0)<<1|peek(bmscr.54, 1)<<2|peek(bmscr.54, 2)<<3|(peek(bmscr.55, 2)>0)<<4
+			sdim lfFaceName
+			dupptr lfFaceName, varptr(bmscr.56), 32, 2
+		#else
+			dupptr logfont, bmscr.49, 60, 4
+			f_size = -logfont.0
+			f_style = (logfont.4>=700)|peek(logfont.5, 0)<<1|peek(logfont.5, 1)<<2|peek(logfont.5, 2)<<3|(peek(logfont.6, 2)>0)<<4
+			sdim lfFaceName
+			getstr lfFaceName, logfont, 28
+		#endif
+	}
+	;システムフォントに変更
+	sysfont 17
+	dim sz, 2
+	g_mesx = 0 : g_mesy = 0
+	p1_ = p1
+	split p1_ ,"\n", res ;複数行対応
+	repeat stat
+		GetTextExtentPoint32 hdc, res(cnt), strlen(res(cnt)), sz
+		if g_mesx < sz(0) : g_mesx = sz(0)
+		if sz(1) < py : sz(1) = py
+		g_mesy += sz(1)
+	loop
+	ori_(1) += g_mesy / 2
+	
+	rect = ori_(0), ori_(1), ori_(0) + 7, ori_(3)
+	DrawEdge hdc, varptr( rect ), bdr, BF_LEFT@mod_grpbox | BF_TOP@mod_grpbox ;左上描画
+	pos ori_(0) + 7 + 2, ori_(1) - g_mesy / 2
+	mes p1
+	rect = ori_(0) + 7 + 2 + g_mesx + 2, ori_(1), ori_(2), ori_(3) : grfFlags =  BF_TOP@mod_grpbox | BF_RIGHT@mod_grpbox
+	if rect(0) >= rect(2) : rect = ori_(0), ori_(1) + g_mesy / 2, ori_(2), ori_(3) : grfFlags = BF_RIGHT@mod_grpbox
+	DrawEdge hdc, varptr( rect ), bdr, grfFlags ;右上描画
+	rect(0) = ori_(0) : rect(2) = ori_(2), ori_(3)
+	DrawEdge hdc, varptr( rect ), bdr, BF_RIGHT@mod_grpbox | BF_BOTTOM@mod_grpbox ;右下描画
+
+	redraw 1, ori_(0), ori_(1), ori_(2), ori_(3)
+	;元に戻す
+	pos ori_(0), ori_(1)
+	;フォントも
+	if lfFaceName = "sysfont" {
+		sysfont f_style
+	}else {
+		#if __hspver__ < $3603
+			font lfFaceName, f_size, f_style
+		#else
+			objcolor objcolRef & $FF, (objcolRef>>8) & $FF, (objcolRef>>16) & $FF
+			font lfFaceName, f_size, f_style, f_effsize
+		#endif
+	}
+	return st
+
+//--------------------------------------
+// エディタ書き換え処理を登録するラベル
+//  -> エディタ書き換えの処理配列を追加する
+//======================================
+// #module ObjPosModDataClass
+// #deffunc local Update_MaeAtoScript_ array mod, int _id
+//--------------------------------------
+*RewriteSc_edgebox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosModDataClass
+	
+	//--------------------------------------
+	// オブジェクト自身にサイズのパラメータあり。posのみ調査する。
+	//--------------------------------------
+	script_buf_before = strmid( fullScript_buf, 0, index_toFunc )
+	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX )
+	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after )
+	//pos調査
+	if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
+		//index_toFunc前のpos調査
+		GetData_BeforeFunc_SubMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+		if stat ! 0 {
+			syori_line( syori_count ) = lineNum_before
+			syori_index_lineHead( syori_count ) = indexLineHead_before
+			syori_index_fromLineHead( syori_count ) = indexSubMatch1_before - indexLineHead_before
+			syori_delete_len( syori_count ) = lenSubMatch2_before
+			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )
+			syori_count++
+		}else {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = "pos "+pos_x2_( mod.id )+", "+pos_y2_( mod.id )+" : "
+			syori_count++
+		}
+		//index_toFunc後ろのpos調査
+		if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( oneLineScript_buf_after_textReplacedDummy, "^(edgebox[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
+			syori_count++
+		}
+	}
+	//オブジェクト調査(size)
+	if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
+		matches result, oneLineScript_buf_after_textReplacedDummy, "^(edgebox[ \t]+)(.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第2パラメータ以上あるとき
+		if stat > 0 {
+			_result = result(0,3)
+		}else {
+			matches result, oneLineScript_buf_after_textReplacedDummy, "^(edgebox[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータまであるとき(パラメータ全省略はできない)
+			if stat = 0 : return
+			_result = ""
+		}
+		syori_line( syori_count ) = hspLine_(mod.id)
+		syori_index_lineHead( syori_count ) = index_lineHead
+		syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1) + strlen.result(0,2)
+		syori_delete_len( syori_count ) = strlen._result
+		syori_write( syori_count ) = ", "+size_w2_( mod.id )+", "+size_h2_( mod.id )
+		syori_count++
+	}
+	return
+	
+//--------------------------------------	
+// リストの備考に何を書くかを登録するラベル
+//  -> 備考に表示したい"文字列"をreturnで返す
+//======================================
+// #module ObjPosMod
+// #deffunc local SetData_ListView int id, int _gyo
+//--------------------------------------
+*ListDetail_edgebox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosMod
+	
+	detail = opt1_( objData.id ) ;opt1_ == edgeboxの文字列
+	detail = strmid( detail, 0, 64 ) ;64文字程度に押さえておく
+	return detail
+
+//--------------------------------------
+// オブジェクトをマウスで選択するときの特殊条件を登録するラベル（はみ出しを許容またはクリックできないオブジェクトのための特殊条件）
+//  -> マウスカーソル座標がどういう範囲なら掴むことにするかを決め、returnに 掴んでいるとき:1, 掴んでいないとき:0 を返す
+//======================================
+// *mHookProc@ObjPosMod
+// if mode = MODE_NONE || mode = MODE_NONE_CHANGED {
+//   case WM_L(R)BUTTONDOWN
+//     foreach objData
+//--------------------------------------
+*HitTest_edgebox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup point, point@ObjPosMod ;マウスカーソル座標配列
+	dup id, id@ObjPosMod
+	
+	st = 0
+	if 0 <= point(0) && point(0) <= size_w2_( objData.id ) && 5 <= point(1) && point(1) <= size_h2_( objData.id ) {
+		if point(0) < 5 || size_w2_( objData.id )-5 < point(0) || point(1) < 10 || size_h2_( objData.id )-5 < point(1) : st = 1
+	}
+	return st ;つかみ判定
+	
+//--------------------------------------
+// オブジェクトサイズ変更時に独自描画が必要な場合に登録するラベル
+//  -> objID_@ObjPosModDataClass( mod.id )の子ウィンドウに size_w1_(mod.id), size_h1_(mod.id), pos_x1_(mod.id), pos_y1_(mod.id) のときのオブジェクトを描画する
+//======================================
+// #module ObjPosMod
+// #deffunc local RedrawObject array mod, int _id
+//--------------------------------------
+*RedrawObj_edgebox
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosMod
+	gsel objID_@ObjPosModDataClass( mod.id )
+
+	redraw 0
+	color bgColorR, bgColorG, bgColorB : boxf@hsp
+	color colorR_( mod.id ), colorG_( mod.id ), colorB_( mod.id )
+	
+	ori_ = 0,0, size_w1_(mod.id), size_h1_(mod.id)
+	g_mesx = opt2_(mod.id)
+	g_mesy = opt3_(mod.id)
+	ori_(1) += g_mesy / 2
+	
+	rect = ori_(0), ori_(1), ori_(0) + 7, ori_(3)
+	DrawEdge hdc, varptr( rect ), bdr, BF_LEFT@mod_grpbox | BF_TOP@mod_grpbox ;左上描画
+	pos ori_(0) + 7 + 2, ori_(1) - g_mesy / 2
+	mes@hsp opt1_(mod.id)
+	rect = ori_(0) + 7 + 2 + g_mesx + 2, ori_(1), ori_(2), ori_(3) : grfFlags =  BF_TOP@mod_grpbox | BF_RIGHT@mod_grpbox
+	if rect(0) >= rect(2) : rect = ori_(0), ori_(1) + g_mesy / 2, ori_(2), ori_(3) : grfFlags = BF_RIGHT@mod_grpbox
+	DrawEdge hdc, varptr( rect ), bdr, grfFlags ;右上描画
+	rect(0) = ori_(0) : rect(2) = ori_(2), ori_(3)
+	DrawEdge hdc, varptr( rect ), bdr, BF_RIGHT@mod_grpbox | BF_BOTTOM@mod_grpbox ;右下描画
+
+	redraw 1
+	return
+	
+#global
+
+#endif
+#endif

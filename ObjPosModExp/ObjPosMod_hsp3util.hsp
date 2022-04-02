@@ -1,0 +1,436 @@
+//------------------------------------------------------------------------------
+// Object Pos Module 拡張モジュール : ObjPosMod_hsp3util.hsp             Ver.1.0
+//------------------------------------------------------------------------------
+#ifdef _debug
+#ifndef __ObjPosMod_hsp3util__
+#define __ObjPosMod_hsp3util__
+
+#include "hsp3util.as" ;モジュール内部では#ifndef等で一度だけしか#includeしないようになっている必要がある
+
+Set_ObjPosModExp@ObjPosMod_hsp3util
+
+#module ObjPosMod_hsp3util
+#deffunc Set_ObjPosModExp@ObjPosMod_hsp3util
+	//------------------------------------------------------------------------------
+	// ObjPosModExp_AddObjType p1,p2,p3,p4,p5,p6,p7,p8
+	//  p1 :拡張オブジェクトが記述されているhspファイル名
+	//  p2 :拡張オブジェクトの名前[#deffunc名] (複数deffuncまたいで使用しているlineやmesをObjPosModのリストに出したくない場合は「拡張オブジェクト名|無視deffunc1|無視deffunc2|・・・」とする)
+	//  p3 :拡張オブジェクトがカレントポジションの影響を受ける又は命令後にカレントポジションが変わる(+1), objsize命令の影響を受ける(+2), font命令の影響を受ける(+4)
+	//  p4 :ObjPosModでのオブジェクト表示タイプ(0:winobjタイプ[enable], 1:bgscrタイプ[半透明])、 描画リフレッシュ処理が必要なとき(+2:追加オプション[ほぼGroupBox用])
+	//  p5 :エディタ書き換え処理を登録するラベル
+	//  p6 :ObjPosModのリストの備考に何を書くかを登録するラベル(省略可)
+	//  p7 :オブジェクトをマウスで選択するときの特殊条件を登録するラベル(省略可)
+	//  p8 :オブジェクトサイズ変更時に独自描画が必要な場合に登録するラベル(省略可)
+	//------------------------------------------------------------------------------
+	ObjPosModExp_AddObjType "hsp3util.as", "statictext", 3, 0, *RewriteSc_statictext, *ListDetail_statictext, *HitTest_statictext ,
+	ObjPosModExp_AddObjType "hsp3util.as", "progbar", 3, 0, *RewriteSc_progbar, , ,
+	ObjPosModExp_AddObjType "hsp3util.as", "scrollbar", 3, 0, *RewriteSc_scrollbar, , ,
+	return
+
+	//--------------------------------------
+	// 変数名定義(モジュール内省略の為)
+	//--------------------------------------
+	#define objData                    objData@ObjPosMod
+	#define mod                        objData@ObjPosMod
+	#define fullScript_buf             fullScript_buf@ObjPosModDataClass
+	#define index_toFunc               index_toFunc@ObjPosModDataClass
+	#define index_lineHead             index_lineHead@ObjPosModDataClass
+	#define syori_count                syori_count@ObjPosModDataClass
+	#define syori_line                 syori_line@ObjPosModDataClass
+	#define syori_index_lineHead       syori_index_lineHead@ObjPosModDataClass
+	#define syori_index_fromLineHead   syori_index_fromLineHead@ObjPosModDataClass
+	#define syori_delete_len           syori_delete_len@ObjPosModDataClass
+	#define syori_write                syori_write@ObjPosModDataClass
+	#define funcnameChangesCurrent_    funcnameChangesCurrent_@ObjPosModDataClass
+	#define scopeBreakerReg_before_    scopeBreakerReg_before_@ObjPosModDataClass
+	#define scopeBreakerReg_after_pos_ scopeBreakerReg_after_pos_@ObjPosModDataClass
+		
+	//--------------------------------------
+	// 関数名定義(モジュール内省略の為)
+	//--------------------------------------
+	#define NG_BlackOrWhite                       NG_BlackOrWhite@ObjPosMod
+	#define CheckInited                           CheckInited@ObjPosMod
+	#define GetOneLineScript_TextReplacedDummy    GetOneLineScript_TextReplacedDummy@ObjPosModDataClass
+	#define GetData_BeforeFunc_SubMatch           GetData_BeforeFunc_SubMatch@ObjPosModDataClass
+	#define NeedBackToOriginal_AfterFunc_SubMatch NeedBackToOriginal_AfterFunc_SubMatch@ObjPosModDataClass
+	#define TanrakuOR                             TanrakuOR@ObjPosMod
+	#define IsInsideExpObj                        IsInsideExpObj@ObjPosModExpClass
+	
+	//--------------------------------------
+	// モジュール変数名定義(モジュール内省略の為)
+	//--------------------------------------
+	#define pos_x0_   pos_x0_@ObjPosModDataClass
+	#define pos_x2_   pos_x2_@ObjPosModDataClass
+	#define pos_y0_   pos_y0_@ObjPosModDataClass
+	#define pos_y2_   pos_y2_@ObjPosModDataClass
+	#define size_w0_  size_w0_@ObjPosModDataClass
+	#define size_w2_  size_w2_@ObjPosModDataClass
+	#define size_h0_  size_h0_@ObjPosModDataClass
+	#define size_h2_  size_h2_@ObjPosModDataClass
+	#define hspLine_  hspLine_@ObjPosModDataClass
+	#define objed_cx_ objed_cx_@ObjPosModDataClass
+	#define objed_cy_ objed_cy_@ObjPosModDataClass
+	#define opt1_     opt1_@ObjPosModDataClass
+	
+	//--------------------------------------
+	// 定数定義(モジュール内省略の為)
+	//--------------------------------------
+	#const  INT_MAX         2147483647
+	#define WIN_TYPE_BUFFER WIN_TYPE_BUFFER@ObjPosMod
+	//(他にも必要なものがあったら同様に記述して使用する)
+	
+//------------------------------------------------------------------------------
+// statictext
+//------------------------------------------------------------------------------
+//--------------------------------------
+// 命令上書きと詳細データの記憶
+//  -> モジュール型変数objData(モジュール名:ObjPosModDataClass)に各種データを登録する
+//--------------------------------------
+#undef statictext
+#define global statictext(%1,%2=0,%3=0) ScFile@ObjPosMod=__file__ : ScLine@ObjPosMod=__line__ : _statictext@ObjPosMod_hsp3util %1,%2,%3
+#deffunc _statictext@ObjPosMod_hsp3util str p1, int p2, int p3
+	ScFile = ScFile@ObjPosMod : ScLine = ScLine@ObjPosMod
+	x = p2 : y = p3
+	mref bmscr,67
+	if x = 0 : x = bmscr.29 ;BMSCR_ox //object size
+	if y = 0 : y = bmscr.30 ;BMSCR_oy
+	if TanrakuOR( NG_BlackOrWhite( ginfo_sel ) , IsInsideExpObj(ScFile,ScLine) ) : statictext@ObjPosMod_hsp3util p1,x,y : return
+	CheckInited ginfo_sel
+	
+	mref bmscr,67
+	posi = ginfo_cx, ginfo_cy
+	size = x, y
+	objsize_py = bmscr.31
+	statictext@ObjPosMod_hsp3util p1,x,y ;この中でScFile@ObjPosModとScLine@ObjPosModの中身が変わってしまう
+	st=stat
+	
+	;詳細をモジュール型変数に記憶(パラメータ詳細はObjPosMod.hspを参照)
+	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "statictext", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
+	modvID = stat
+	Set_opt1_@ObjPosModDataClass objData.modvID, ""+p1
+	return st
+//--------------------------------------
+// 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
+//--------------------------------------
+#deffunc statictext@ObjPosMod_hsp3util str _p1, int _p2, int _p3
+	;
+	;	スタティックテキストを配置オブジェクトとして生成する
+	;	statictext "テキスト",Xサイズ,Yサイズ
+	;	(posで指定した位置に表示されます)
+	;
+	winobj "STATIC",_p1,0,WS_VISIBLE@hsp3util|WS_CHILD@hsp3util,_p2,_p3
+	return stat
+
+//--------------------------------------
+// エディタ書き換え処理を登録するラベル
+//  -> エディタ書き換えの処理配列を追加する
+//======================================
+// #module ObjPosModDataClass
+// #deffunc local Update_MaeAtoScript_ array mod, int _id
+//--------------------------------------
+*RewriteSc_statictext
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosModDataClass
+	
+	//--------------------------------------
+	// オブジェクト自身にサイズのパラメータあり。posのみ調査する。
+	//--------------------------------------
+	script_buf_before = strmid( fullScript_buf, 0, index_toFunc )
+	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX )
+	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after )
+	//pos調査
+	if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
+		//index_toFunc前のpos調査
+		GetData_BeforeFunc_SubMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+		if stat ! 0 {
+			syori_line( syori_count ) = lineNum_before
+			syori_index_lineHead( syori_count ) = indexLineHead_before
+			syori_index_fromLineHead( syori_count ) = indexSubMatch1_before - indexLineHead_before
+			syori_delete_len( syori_count ) = lenSubMatch2_before
+			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )
+			syori_count++
+		}else {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = "pos "+pos_x2_( mod.id )+", "+pos_y2_( mod.id )+" : "
+			syori_count++
+		}
+		//index_toFunc後ろのpos調査
+		if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( oneLineScript_buf_after_textReplacedDummy, "^(statictext[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
+			syori_count++
+		}
+	}
+	//オブジェクト調査(size)
+	if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
+		matches result, oneLineScript_buf_after_textReplacedDummy, "^(statictext[ \t]+)(.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第2パラメータ以上あるとき
+		if stat > 0 {
+			_result = result(0,3)
+		}else {
+			matches result, oneLineScript_buf_after_textReplacedDummy, "^(statictext[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータまであるとき(パラメータ全省略はできない)
+			if stat = 0 : return
+			_result = ""
+		}
+		syori_line( syori_count ) = hspLine_(mod.id)
+		syori_index_lineHead( syori_count ) = index_lineHead
+		syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1) + strlen.result(0,2)
+		syori_delete_len( syori_count ) = strlen._result
+		syori_write( syori_count ) = ", "+size_w2_( mod.id )+", "+size_h2_( mod.id )
+		syori_count++
+	}
+	return
+	
+//--------------------------------------	
+// リストの備考に何を書くかを登録するラベル
+//  -> 備考に表示したい"文字列"をreturnで返す
+//======================================
+// #module ObjPosMod
+// #deffunc local SetData_ListView int id, int _gyo
+//--------------------------------------
+*ListDetail_statictext
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosMod
+	
+	detail = opt1_( objData.id ) ;opt1_ == statictextの文字列
+	detail = strmid( detail, 0, 64 ) ;64文字程度に押さえておく
+	//備考に表示したい"文字列"をreturnで返す
+	return detail
+
+//--------------------------------------
+// オブジェクトをマウスで選択するときの特殊条件を登録するラベル（はみ出しを許容またはクリックできないオブジェクトのための特殊条件）
+//  -> マウスカーソル座標がどういう範囲なら掴むことにするかを決め、returnに 掴んでいるとき:1, 掴んでいないとき:0 を返す
+//======================================
+// *mHookProc@ObjPosMod
+// if mode = MODE_NONE || mode = MODE_NONE_CHANGED {
+//   case WM_L(R)BUTTONDOWN
+//     foreach objData
+//--------------------------------------
+*HitTest_statictext
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup point, point@ObjPosMod ;マウスカーソル座標配列
+	dup id, id@ObjPosMod
+	
+	st = 0
+	if 0 <= point(0) && point(0) <= size_w2_( objData.id ) && 0 <= point(1) && point(1) <= size_h2_( objData.id ) : st = 1 ;なんかスタティックテキスト反応しなかったので特殊条件として範囲を指定する
+	return st ;つかみ判定
+
+
+//------------------------------------------------------------------------------
+// progbar
+//------------------------------------------------------------------------------
+//--------------------------------------
+// 命令上書きと詳細データの記憶
+//  -> モジュール型変数objData(モジュール名:ObjPosModDataClass)に各種データを登録する
+//--------------------------------------
+#undef progbar
+#define global progbar(%1=0,%2=0) ScFile@ObjPosMod=__file__ : ScLine@ObjPosMod=__line__ : _progbar@ObjPosMod_hsp3util %1,%2
+#deffunc _progbar@ObjPosMod_hsp3util int p1, int p2
+	ScFile = ScFile@ObjPosMod : ScLine = ScLine@ObjPosMod
+	x = p1 : y = p2
+	mref bmscr,67
+	if x = 0 : x = bmscr.29 ;BMSCR_ox //object size
+	if y = 0 : y = bmscr.30 ;BMSCR_oy
+	if TanrakuOR( NG_BlackOrWhite( ginfo_sel ) , IsInsideExpObj(ScFile,ScLine) ) : progbar@ObjPosMod_hsp3util x,y : return
+	CheckInited ginfo_sel
+	mref bmscr,67
+	posi = ginfo_cx, ginfo_cy
+	size = x, y
+	objsize_py = bmscr.31
+	progbar@ObjPosMod_hsp3util x,y ;この中でScFile@ObjPosModとScLine@ObjPosModの中身が変わってしまう
+	st=stat
+	
+	;詳細をモジュール型変数に記憶(パラメータ詳細はObjPosMod.hspを参照)
+	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "progbar", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
+	return st
+//--------------------------------------
+// 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
+//--------------------------------------
+#deffunc progbar@ObjPosMod_hsp3util int _p1, int _p2
+
+	;
+	;	プログレスバーを配置オブジェクトとして生成する
+	;	progbar Xサイズ,Yサイズ
+	;	(posで指定した位置に表示されます)
+	;
+	winobj "msctls_progress32","",0,WS_VISIBLE@hsp3util|WS_CHILD@hsp3util,_p1,_p2
+	return stat
+
+//--------------------------------------
+// エディタ書き換え処理を登録するラベル
+//  -> エディタ書き換えの処理配列を追加する
+//======================================
+// #module ObjPosModDataClass
+// #deffunc local Update_MaeAtoScript_ array mod, int _id
+//--------------------------------------
+*RewriteSc_progbar
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosModDataClass
+	
+	//--------------------------------------
+	// オブジェクト自身にサイズのパラメータあり。posのみ調査する。
+	//--------------------------------------
+	script_buf_before = strmid( fullScript_buf, 0, index_toFunc )
+	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX )
+	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after )
+	//pos調査
+	if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
+		//index_toFunc前のpos調査
+		GetData_BeforeFunc_SubMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+		if stat ! 0 {
+			syori_line( syori_count ) = lineNum_before
+			syori_index_lineHead( syori_count ) = indexLineHead_before
+			syori_index_fromLineHead( syori_count ) = indexSubMatch1_before - indexLineHead_before
+			syori_delete_len( syori_count ) = lenSubMatch2_before
+			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )
+			syori_count++
+		}else {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = "pos "+pos_x2_( mod.id )+", "+pos_y2_( mod.id )+" : "
+			syori_count++
+		}
+		//index_toFunc後ろのpos調査
+		if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( oneLineScript_buf_after_textReplacedDummy, "^(progbar[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
+			syori_count++
+		}
+	}
+	//オブジェクト調査(size)
+	if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
+		matches result, oneLineScript_buf_after_textReplacedDummy, "^(progbar[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータ以上あるとき
+		if stat = 0 : return
+		syori_line( syori_count ) = hspLine_(mod.id)
+		syori_index_lineHead( syori_count ) = index_lineHead
+		syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1)
+		syori_delete_len( syori_count ) = strlen.result(0,2)
+		syori_write( syori_count ) = ""+size_w2_( mod.id )+", "+size_h2_( mod.id )
+		syori_count++
+	}
+	return
+
+//------------------------------------------------------------------------------
+// scrollbar
+//------------------------------------------------------------------------------
+//--------------------------------------
+// 命令上書きと詳細データの記憶
+//  -> モジュール型変数objData(モジュール名:ObjPosModDataClass)に各種データを登録する
+//--------------------------------------
+#undef scrollbar
+#define global scrollbar(%1=0,%2=0) ScFile@ObjPosMod=__file__ : ScLine@ObjPosMod=__line__ : _scrollbar@ObjPosMod_hsp3util %1,%2
+#deffunc _scrollbar@ObjPosMod_hsp3util int p1, int p2
+	ScFile = ScFile@ObjPosMod : ScLine = ScLine@ObjPosMod
+	x = p1 : y = p2
+	mref bmscr,67
+	if x = 0 : x = bmscr.29 ;BMSCR_ox //object size
+	if y = 0 : y = bmscr.30 ;BMSCR_oy
+	if TanrakuOR( NG_BlackOrWhite( ginfo_sel ) , IsInsideExpObj(ScFile,ScLine) ) : scrollbar@ObjPosMod_hsp3util x,y : return
+	CheckInited ginfo_sel
+	mref bmscr,67
+	posi = ginfo_cx, ginfo_cy
+	size = x, y
+	objsize_py = bmscr.31
+	scrollbar@ObjPosMod_hsp3util x,y ;この中でScFile@ObjPosModとScLine@ObjPosModの中身が変わってしまう
+	st=stat
+	
+	;詳細をモジュール型変数に記憶(パラメータ詳細はObjPosMod.hspを参照)
+	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "scrollbar", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
+	return st
+//--------------------------------------
+// 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
+//--------------------------------------
+#deffunc scrollbar@ObjPosMod_hsp3util int _p1, int _p2
+
+	;
+	;	スクロールバーを配置オブジェクトとして生成する
+	;	scrollbar Xサイズ,Yサイズ
+	;	(posで指定した位置に表示されます)
+	;
+	winobj "SCROLLBAR","",0,WS_VISIBLE@hsp3util|WS_CHILD@hsp3util,_p1,_p2
+	return stat
+	
+//--------------------------------------
+// エディタ書き換え処理を登録するラベル
+//  -> エディタ書き換えの処理配列を追加する
+//======================================
+// #module ObjPosModDataClass
+// #deffunc local Update_MaeAtoScript_ array mod, int _id
+//--------------------------------------
+*RewriteSc_scrollbar
+	//--------------------------------------
+	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
+	//--------------------------------------
+	dup id, id@ObjPosModDataClass
+	
+	//--------------------------------------
+	// オブジェクト自身にサイズのパラメータあり。posのみ調査する。
+	//--------------------------------------
+	script_buf_before = strmid( fullScript_buf, 0, index_toFunc )
+	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX )
+	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after )
+	//pos調査
+	if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
+		//index_toFunc前のpos調査
+		GetData_BeforeFunc_SubMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+		if stat ! 0 {
+			syori_line( syori_count ) = lineNum_before
+			syori_index_lineHead( syori_count ) = indexLineHead_before
+			syori_index_fromLineHead( syori_count ) = indexSubMatch1_before - indexLineHead_before
+			syori_delete_len( syori_count ) = lenSubMatch2_before
+			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )
+			syori_count++
+		}else {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = "pos "+pos_x2_( mod.id )+", "+pos_y2_( mod.id )+" : "
+			syori_count++
+		}
+		//index_toFunc後ろのpos調査
+		if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			syori_line( syori_count ) = hspLine_(mod.id)
+			syori_index_lineHead( syori_count ) = index_lineHead
+			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( oneLineScript_buf_after_textReplacedDummy, "^(scrollbar[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
+			syori_delete_len( syori_count ) = 0
+			syori_write( syori_count ) = " : pos "+objed_cx_( mod.id )+", "+objed_cy_( mod.id )
+			syori_count++
+		}
+	}
+	//オブジェクト調査(size)
+	if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
+		matches result, oneLineScript_buf_after_textReplacedDummy, "^(scrollbar[ \t]+)(.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第1パラメータ以上あるとき
+		if stat = 0 : return
+		syori_line( syori_count ) = hspLine_(mod.id)
+		syori_index_lineHead( syori_count ) = index_lineHead
+		syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.result(0,1)
+		syori_delete_len( syori_count ) = strlen.result(0,2)
+		syori_write( syori_count ) = ""+size_w2_( mod.id )+", "+size_h2_( mod.id )
+		syori_count++
+	}
+	return
+
+
+#global
+
+#endif
+#endif
