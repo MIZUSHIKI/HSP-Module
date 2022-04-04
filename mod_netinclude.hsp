@@ -16,81 +16,101 @@ MIZUSHIKI
 #define __mod_netinclude__
 ;メインスクリプト内の #netinclude しか認識しません。
 #ifdef _debug
-//デバッグ時のみ #netinclude 処理を実行
+;デバッグ時のみ #netinclude 処理を実行
 #include "hspinet.as" ;デバッグ時の2つのincludeは我慢してもらう。しか・・・
 #include "mod_regexp.as"
-#define netinclude(%1) addition %1*
-	exist"hsptmp" //#addition(#include) の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く。(命令が成立すると右側が無視される) 
-	if strsize>0{ ;なるべく文字数を削減する (min版で1行1024文字に抑え たかったけど無理なった)
-		t@_@="":d@_@=dir_exe+"\\common\\" ;初期化
-		notesel t@_@:noteload"hsptmp":noteunsel ;hsptmp読み込み
-		matches t@_@,t@_@,"#net\include\\s*\"((?:net/)?)(.+?)\"\\s*/" ;#netinclude部分を読み取り
+#define netinclude(%1,%2=_@_@) addition %1*
+	exist"hsptmp" ;#addition(#include) の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く。(命令が成立すると右側が無視される) 
+	if strsize>0{ ;なるべく文字数を削減したい、が諦めた
+		a@_@="":b@_@="":w@_@=dir_exe+"\\common\\":y@_@="#net\include" ;初期化 (y@_@の\はmin版の時のmatches検索回避の為)
+		notesel a@_@:noteload"hsptmp":noteunsel ;hsptmp読み込み
+		matches a@_@,a@_@,y@_@+"\\s*\"((?:net/)?)(.+?)\"\\s*/\\s*,?\\s*(\\w*)" ;#netinclude部分を読み取り
 		repeat stat
-			exist d@_@+t@_@.cnt.1+t@_@.cnt.2 ;ファイルがダウンロード済みなら何もしない
-			t@_@.cnt="0" ;ダウンロードしない
-			if strsize<0{ ;t@_@(cnt,0);ダウンロードフラグ / n;カウント 
-				t@_@.cnt="":n@_@++
+			x@_@=w@_@:if"current"=a@_@.cnt.3{x@_@=""}
+			exist x@_@+a@_@.cnt.1+a@_@.cnt.2 ;ファイルがダウンロード済みなら何もしない
+			a@_@.cnt="0" ;ダウンロードしない
+			if strsize<0{ ;a@_@(cnt,0);ダウンロードフラグ / n,m;カウント
+				a@_@.cnt=""
+				if""=x@_@{a@_@.cnt.3="2":m@_@++}else{a@_@.cnt.3="1":n@_@++}
 			}
 		loop
-		if n@_@>0{
-			a@_@=d@_@+"\n\nに\n\n"
-			foreach t@_@
-				if t@_@.cnt="0"{continue}
-				if t@_@.cnt.1!""{
-					if n@_@!0{
-						netinit ;hspinetの初期化
-						neturl"https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php?req=data"
-						netrequest_get""
-						repeat
-							netexec n@_@ ;結果待ちのためのループ
-							if n@_@{break}
-							await 50
+		if n@_@+m@_@>0{
+			s@_@="","","":z@_@="ダウンロード"
+			repeat 2,1
+				i@_@=cnt
+				foreach a@_@
+					if"0"=a@_@.cnt{continue}
+					if""+i@_@!a@_@.cnt.3{continue}
+					if""!a@_@.cnt.1{
+						if""=b@_@{
+							netinit ;hspinetの初期化
+							neturl"https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php?req=data"
+							netrequest_get""
+							repeat
+								netexec n@_@ ;結果待ちのためのループ
+								if n@_@{break}
+								await 50
+							loop
+							netgetv b@_@ ;受信データを代入
+							matches b@_@,b@_@,"^(.*?)\t(.*?)$"
+							j@_@=stat
+						}
+						k@_@=cnt:a@_@.cnt="0"
+						repeat j@_@
+							if getpath(b@_@.cnt.1,16)=getpath(a@_@.k@_@.2,16){a@_@.k@_@=b@_@.cnt.2:a@_@.k@_@.2=b@_@.cnt.1:break} ;netloadで大文字小文字問われるのでHSP3NetModulesでのファイル名に置き換え
 						loop
-						n@_@=0
-						sdim b@_@,netgetv_size() ;バッファを確保(実際に受信した量より多めに確保される)
-						netgetv_data b@_@ ;受信データを代入
-						c@_@=getpath(b@_@,16)
+						if"0"=a@_@.cnt{continue}
+						s@_@.i@_@+=">net/(->"+a@_@.cnt+")"+a@_@.cnt.2+"\n"
+					}else{
+						s@_@.i@_@+=">"+a@_@.cnt.2+"\n"
 					}
-					v@_@=instr(c@_@,0,getpath("\n"+t@_@.cnt.2+"\t",16))
-					if v@_@<0{
-						t@_@.cnt="0":continue
-					}
-					getstr t@_@.cnt,b@_@,v@_@+strlen("\n"+t@_@.cnt.2+"\t")
-					a@_@+="・net/(->"+t@_@.cnt+")"+t@_@.cnt.2+"\n"
-				}else{
-					a@_@+="・"+t@_@.cnt.2+"\n"
-				}
-			loop
-			if a@_@=d@_@+"\n\nに\n\n"{dialog"モジュールデータが見つかりませんでした",1,"#net\include":end}
-			dialog a@_@+"\nをダウンロードします。",2,"#net\include" ;\はmin版の時のmatches検索回避の為
-			if stat=6{
-				if n@_@!0{netinit} ;hspinetの初期化
-				foreach t@_@
-					if t@_@.cnt="0"{continue}                              ; t@_@.cnt.0 = "0" or "netmod_REPOS" or ""
-					chdir d@_@                                             ; t@_@.cnt.1 =        "net/"         or ""
-					t@_@.cnt.1+=t@_@.cnt.2                                 ; t@_@.cnt.2 =        "ModName.hsp"  or "REPOS/FLD/ModName.hsp"
-					split t@_@.cnt.1,"/",v@_@ ;URL(ディレクトリ)構造分解
-					if stat>0{
-						repeat stat-1 ;深い階層を作っていく
-							dirlist a@_@,v@_@.cnt,5 ;フォルダ存在確認
-							if stat=0{mkdir v@_@.cnt} ;フォルダが存在しないなら作る
-							chdir v@_@.cnt ;カレントディレクトリを1階層深くに移動
-						loop
-					}
-					t@_@.cnt=getpath(t@_@.cnt,16)+t@_@.cnt.2
-					neturl"https://raw.githubusercontent.com/"+getpath(t@_@.cnt,32) ;GitHubから
-					netload getpath(t@_@.cnt,8) ;HSPモジュールをダウンロード
 				loop
-				dialog"ダウンロードしました。\nHSPを再実行して下さい。",,"#net\include":end ;ダウンロードしたらもう一度実行してもらう
+			loop
+			if""=s@_@.1+s@_@.2{dialog"モジュールデータが見つかりませんでした",1,y@_@:end}
+			if""!s@_@.1{s@_@.0+=w@_@+"\n\nに\n\n"+s@_@.1:if""!s@_@.2{s@_@.0+="\nを"+z@_@+"、\n------\n\n"}}
+			if""!s@_@.2{s@_@.0+=dir_cur+"\n\nに\n\n"+s@_@.2}
+			dialog s@_@.0+"\nを"+z@_@+"します。",2,y@_@
+			if stat=6{
+				s@_@="":x@_@=dir_cur
+				if""=b@_@{netinit} ;hspinetの初期化
+				foreach a@_@
+					if"0"=a@_@.cnt{continue}                              ; a@_@.cnt.0 = "0" or "netmod_REPOS" or ""
+					if"1"=a@_@.cnt.3{chdir w@_@}                          ; a@_@.cnt.1 =        "net/"         or ""
+					a@_@.cnt.1+=a@_@.cnt.2                                ; a@_@.cnt.2 =        "ModName.hsp"  or "REPOS/FLD/ModName.hsp"
+					split a@_@.cnt.1,"/",b@_@ ;URL(ディレクトリ)構造分解  ; a@_@.cnt.3 = "1" or "2"
+					repeat stat-1 ;深い階層を作っていく
+						dirlist _@_@,b@_@.cnt,5 ;フォルダ存在確認
+						if stat=0{mkdir b@_@.cnt} ;フォルダが存在しないなら作る
+						chdir b@_@.cnt ;カレントディレクトリを1階層深くに移動
+					loop
+					a@_@.cnt=a@_@.cnt+a@_@.cnt.2
+					neturl"https://raw.githubusercontent.com/"+a@_@.cnt ;GitHubから
+					netrequest_get"" ;HSPモジュールをダウンロード
+					repeat
+						netexec n@_@ ;結果待ちのためのループ
+						if n@_@{break}
+						await 50
+					loop
+					netgetv b@_@ ;受信データを代入
+					if"40"=strmid(b@_@,0,2){
+						s@_@+=">"+a@_@.cnt+"\n"
+					}else{
+						notesel b@_@
+						notesave getpath(a@_@.cnt,8)
+					}
+					chdir x@_@
+				loop
+				if""!s@_@{dialog z@_@+"に失敗しました。\n\n"+s@_@,,y@_@:end}
+				dialog z@_@+"しました。\nHSPを再実行して下さい。",,y@_@:end ;ダウンロードしたらもう一度実行してもらう
 			}
 		}
-		sdim t@_@ ;大きめ(?)の変数を初期化
+		sdim a@_@ ;大きめ(?)の変数を初期化
 	}
 #else
-//実行ファイル作成時はただの #include になる
-#define netinclude(%1) include %1
+;実行ファイル作成時はただの #include になる
+#define netinclude(%1,%2=_@_@) include %1
 #endif
-//↑ minバージョンと同じ内容
+;↑ ここをminバージョン化
 #ifdef _debug
 #module mod_netinclude
 #define NETMOD_PHPFILE "https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php"
@@ -214,8 +234,9 @@ Win
 インターネットを使用してGitHubからモジュールをダウンロード
 
 %prm
-"module_name"/
+"module_name"/,p1
 "module_name"/ : "モジュール名文字列"/
+p1(省略可) : currentキーワード
 
 %inst
 p1で指定したモジュールがcommonフォルダに存在しない場合、GitHubからダウンロードします。
@@ -233,6 +254,8 @@ HSP3NetModulesデータベースに登録されていないものもリポジトリ名まで入力することで
 
 HSP3NetModulesデータベースに何が登録されているかは netinclude_GetData で取得できます。
 また、netinclude_PostModule命令で誰でも自由にデータベースにモジュールを登録することができます。
+
+p1に『current』と記述するとcommonフォルダでなくカレントフォルダにモジュールをダウンロードします。
 
 ※ 注意点
 html{
