@@ -124,8 +124,7 @@ MIZUSHIKI
 		if res{break}
 		await 50
 	loop
-	sdim buf, netgetv_size@() ;バッファを確保
-	netgetv_data@ buf ;受信データを代入
+	netgetv@ buf ;受信データを代入
 	screen ginfo(25)
 	title "#netinclude - netinclude_GetData"
 	mesbox buf, ginfo_dispx, ginfo_dispy, 12
@@ -142,8 +141,7 @@ MIZUSHIKI
 		if res{break}
 		await 50
 	loop
-	sdim buf, netgetv_size@() ;バッファを確保
-	netgetv_data@ buf ;受信データを代入
+	netgetv@ buf ;受信データを代入
 	screen ginfo(25)
 	title "#netinclude - netinclude_PostModule"
 	if strmid( buf, 0, 7 ) = "false: " {
@@ -182,8 +180,7 @@ MIZUSHIKI
 		if res{break}
 		await 50
 	loop
-	sdim buf, netgetv_size@() ;バッファを確保(実際に受信した量より多めに確保される)
-	netgetv_data@ buf ;受信データを代入
+	netgetv@ buf ;受信データを代入
 	screen ginfo(25)
 	title "#netinclude - netinclude_DeleteModule"
 	if strmid( buf, 0, 7 ) = "false: " {
