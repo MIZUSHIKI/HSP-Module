@@ -133,7 +133,7 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 	Set_opt1_@ObjPosModDataClass objData.modvID, ""+p1
 	return st
 //--------------------------------------
-// （↑の※部分で元のgrpbox命令を実行したい）
+// （↑の※部分で元のstatictext命令を実行したい）
 // 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
 //--------------------------------------
 #deffunc statictext@ObjPosMod_hsp3util str _p1, int _p2, int _p3
