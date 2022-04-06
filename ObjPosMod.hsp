@@ -1554,7 +1554,7 @@ local _result
 			;処理するタブを見ていないなら切り替える
 			if hsow_openTabFilename ! hspFile_( mod.id ) {
 				if hspFile_( mod.id ) = "???" { ;もし無題ならhsptmp_スクリプトと同じ中身のタブを表示させる
-					HSED_ShowTab_script@ObjPosModHsedModule hsptmp_
+					HSED_ShowTab_script@ObjPosModHsedModule Get_script_@ObjPosModScriptClass( "???" ) ;中身hsptmp_@ObjPosModScriptClassが参照される
 				}else {
 					hspFilePath = Get_fullPath_@ObjPosModScriptClass( hspFile_( mod.id ) )
 					HSED_ShowTab_filename@ObjPosModHsedModule hspFilePath
@@ -1878,8 +1878,9 @@ local len
 //--------------------------------------
 // 指定したスクリプトと同じ内容のタブを探して表示させる
 //--------------------------------------
-#deffunc local HSED_ShowTab_script var script
-	_script = strtrim_EndReturn( script ) ;hsp3.51とhsp3.6とでhsptmp末尾の改行の扱いが違ったので除去して比較する
+#deffunc local HSED_ShowTab_script str script
+	_script = script
+	_script = strtrim_EndReturn( _script ) ;hsp3.51とhsp3.6とでhsptmp末尾の改行の扱いが違ったので除去して比較する
 	st = -1
 	hsed_gettabcount nTabs
 	if stat : return st
