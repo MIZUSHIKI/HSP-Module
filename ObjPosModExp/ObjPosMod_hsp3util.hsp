@@ -94,22 +94,46 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 	mref bmscr,67
 	if x = 0 : x = bmscr.29 ;BMSCR_ox //object size
 	if y = 0 : y = bmscr.30 ;BMSCR_oy
-	if TanrakuOR( NG_BlackOrWhite( ginfo_sel ) , IsInsideExpObj(ScFile,ScLine) ) : statictext@ObjPosMod_hsp3util p1,x,y : return
+	;記録しなくて良い場合は普通にgrpboxを実行してreturn
+	; if TanrakuOR() :それぞれの項目ごとにifして条件を満たした(0以外になった)ら以降の項目は無視して(処理せず)条件式を終わらせる
+	if TanrakuOR( NG_BlackOrWhite( ginfo_sel ) , IsInsideExpObj(ScFile,ScLine) ) : statictext@ObjPosMod_hsp3util p1,x,y : return ;※
+	;ObjPosModモジュールが初期化されているか確認（されていなかったら内部で初期化が実行される）
 	CheckInited ginfo_sel
 	
 	mref bmscr,67
 	posi = ginfo_cx, ginfo_cy
 	size = x, y
 	objsize_py = bmscr.31
+	;statictextを実行
 	statictext@ObjPosMod_hsp3util p1,x,y ;この中でScFile@ObjPosModとScLine@ObjPosModの中身が変わってしまう
 	st=stat
 	
-	;詳細をモジュール型変数に記憶(パラメータ詳細はObjPosMod.hspを参照)
+	;詳細をモジュール型変数に記憶
+	// #modinit int _winid, int _winHwnd, int _objID, int _objHwnd, str _objType, int _pos_x0, int _pos_y0, int _size_w0, int _size_h0, int _objed_cx, int _objed_cy, int _objsz_py, int _colorR, int _colorG, int _colorB, str _hspFile, int _hspLine
+	// winID        :オブジェクトを配置したウィンドウのID
+	// winHwnd      :オブジェクトを配置したウィンドウのhWnd
+	// objID        :オブジェクトのID
+	// objHwnd      :オブジェクトのhWnd
+	// objType      :オブジェクトのタイプ("mes","button"等)
+	// pos_x0       :オブジェクトの位置x
+	// pos_y0       :オブジェクトの位置y
+	// size_w0      :オブジェクトのサイズw
+	// size_h0      :オブジェクトのサイズh
+	// objed_cx     :オブジェクトを配置したときの元のカレントポジションx
+	// objed_cy     :オブジェクトを配置したときの元のカレントポジションy
+	// objsz_py     :オブジェクトを配置したときのobjsize p3(Y方向の最低確保行サイズ)
+	// colorR       :オブジェクトを配置したときのカレントカラーR
+	// colorG       :オブジェクトを配置したときのカレントカラーG
+	// colorB       :オブジェクトを配置したときのカレントカラーB
+	// hspFile      :オブジェクトを配置したときのHSPファイル名
+	// hspLine      :オブジェクトを配置したときのHSPファイルの行数
+	// opt1～       ;上記以外でオブジェクトに必要なデータを保存(objTypeによって変数の型が異なる)
 	newmod objData, ObjPosModDataClass, ginfo_sel, hwnd, st, objinfo_hwnd(st), "statictext", posi(0),posi(1), size(0),size(1), ginfo_cx,ginfo_cy, objsize_py, ginfo_r,ginfo_g,ginfo_b, ScFile, ScLine
 	modvID = stat
 	Set_opt1_@ObjPosModDataClass objData.modvID, ""+p1
 	return st
 //--------------------------------------
+// （↑の※部分で元のgrpbox命令を実行したい）
 // 一度undefしてしまったので、元のモジュールからそのままもらってきて定数末尾にすべてモジュール名を書き足して乗っ取る（他にやりようがない と思う）
 //--------------------------------------
 #deffunc statictext@ObjPosMod_hsp3util str _p1, int _p2, int _p3
@@ -135,16 +159,49 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 	dup id, id@ObjPosModDataClass
 	
 	//--------------------------------------
+	// エディタ書き換えの処理配列
+	//======================================
+	// syori_line               :書き換え処理をする行番号
+	// syori_index_lineHead     :書き換え行の行頭のindex
+	// syori_index_fromLineHead :書き換える文字は行頭から何index目か
+	// syori_delete_len         :書き換えで消す文字のbyte数
+	// syori_write              :書き換えで消した後に書き込む文字
+	// (syori_count)            :処理配列のインデックス
+	//--------------------------------------
+	
+	//------------------------------------------------------------------------------
+	// 書き換えの基準について（ここではmes命令で説明）
+	//==============================================================================
+	// pos : font     
+	//             ← mesと一番近いposとの間に邪魔な命令がなければ、このposのパラメータを変化させれば良い。
+	// (input)     ← 仮にカレントポジションが変わる命令が間にあったら、適切なposがないのでmes命令直前にposを書き加える必要がある。
+	// mes            
+	//             ← mesの次のカレントポジションが関わる命令までの間にposがあれば、mesの位置をいじっても後ろの命令に影響を与えない。つまりmes命令直後にカレントポジションを戻す処理を書き加える必要はない。
+	// (stop)         ┌→ 但し、(button)との間に仮に(stop)などのカレントポジションのスコープ(関わり)が切れる記述があった場合(このstopがbuttonの手前にあった場合)、posを書き加えるのは冗長になるため必要ない。
+	// (button)    ← 仮にカレントポジションに関わる命令があったら、mesのposだけ変えると後ろが全てズレてしまうので、mes命令直後にカレントポジションを戻す処理(pos)を書き加える必要がある。
+	// pos            
+	//             ※ これのfont版や、他のobjTypeのpos,objsizeも調査して、それぞれ処理方法を決定する。(boxf等、命令によってはパラメータに組み込まれたり、カレントが変更されなかったりとこれらの調査がいらない場合もある。)
+	//------------------------------------------------------------------------------
+	
+	//--------------------------------------
 	// オブジェクト自身にサイズのパラメータあり。posのみ調査する。
 	//--------------------------------------
-	script_buf_before = strmid( fullScript_buf, 0, index_toFunc )
-	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX )
-	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after )
+	; fullScript_buf :スクリプト全文
+	; index_toFunc   :命令(objType_)までのインデックス
+	; index_lineHead :命令(objType_)の書いてある行数
+	script_buf_before = strmid( fullScript_buf, 0, index_toFunc ) ;拡張オブジェクト命令の手前のスクリプトを取得
+	script_buf_after  = strmid( fullScript_buf, index_toFunc, INT_MAX ) ;拡張オブジェクト命令から後ろのスクリプトを取得
+	oneLineScript_buf_after_textReplacedDummy = GetOneLineScript_TextReplacedDummy( script_buf_after ) ;拡張オブジェクト命令が書いてある行のスクリプト（1行だけ）。文字列やコメントを「X」で置き換えてある。
 	//pos調査
 	if pos_x0_( mod.id ) ! pos_x2_( mod.id ) || pos_y0_( mod.id ) ! pos_y2_( mod.id ) {
 		//index_toFunc前のpos調査
 		GetData_BeforeFunc_SubMatch lineNum_before, indexLineHead_before, indexSubMatch1_before, lenSubMatch2_before,   script_buf_before, "^((?:.|\n)*(?:\n|:|\\{|[ \t])pos[ \t]+)("+pos_x0_(mod.id)+"[ \t]*,[ \t]*"+pos_y0_(mod.id)+")", funcnameChangesCurrent_, scopeBreakerReg_before_
+		; lineNum_before        :pos命令の書いてある行数
+		; indexLineHead_before  :pos命令のある行の行頭までのインデックス
+		; indexSubMatch1_before :pos命令のパラメータ手前までのインデックス(submatch文字列の1つ目の結果の長さを返している)
+		; lenSubMatch2_before   :pos命令のパラメータ部分の文字列長(submatch文字列の2つ目の結果の長さを返している)
 		if stat ! 0 {
+			; posが見つかった
 			syori_line( syori_count ) = lineNum_before
 			syori_index_lineHead( syori_count ) = indexLineHead_before
 			syori_index_fromLineHead( syori_count ) = indexSubMatch1_before - indexLineHead_before
@@ -152,6 +209,7 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 			syori_write( syori_count ) = ""+pos_x2_( mod.id )+", "+pos_y2_( mod.id )
 			syori_count++
 		}else {
+			; posが見つからなかった(または見つかったが間に邪魔者がいたからそのposは使えない)ときは拡張オブジェクト命令手前にposを追記させる
 			syori_line( syori_count ) = hspLine_(mod.id)
 			syori_index_lineHead( syori_count ) = index_lineHead
 			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead
@@ -161,6 +219,7 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 		}
 		//index_toFunc後ろのpos調査
 		if NeedBackToOriginal_AfterFunc_SubMatch(  script_buf_after, "^((?:.|\n)*?(?:\n|:|\\{|[ \t]))pos[ \t]+", funcnameChangesCurrent_, scopeBreakerReg_after_pos_ ) {
+			; mes令直後にカレントポジションを戻す処理(pos)を書き加える必要がある
 			syori_line( syori_count ) = hspLine_(mod.id)
 			syori_index_lineHead( syori_count ) = index_lineHead
 			syori_index_fromLineHead( syori_count ) = index_toFunc - index_lineHead + strlen.submatch( oneLineScript_buf_after_textReplacedDummy, "^(statictext[ \t]+.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)" )
@@ -171,6 +230,7 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 	}
 	//オブジェクト調査(size)
 	if size_w0_( mod.id ) ! size_w2_( mod.id ) || size_h0_( mod.id ) ! size_h2_( mod.id ) {
+		//grpboxパラメータのサイズ指定部分を見つける
 		matches result, oneLineScript_buf_after_textReplacedDummy, "^(statictext[ \t]+)(.*?)(,.*?)[ \t]*(?:\n|:|;|//|/\\*|\\}|$)", 0, 1, 1 ;第2パラメータ以上あるとき
 		if stat > 0 {
 			_result = result(0,3)
@@ -203,7 +263,6 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 	
 	detail = opt1_( objData.id ) ;opt1_ == statictextの文字列
 	detail = strmid( detail, 0, 64 ) ;64文字程度に押さえておく
-	//備考に表示したい"文字列"をreturnで返す
 	return detail
 
 //--------------------------------------
@@ -219,7 +278,7 @@ Set_ObjPosModExp@ObjPosMod_hsp3util
 	//--------------------------------------
 	// 変数をクローン(他に必要な変数や命令は冒頭で定義)
 	//--------------------------------------
-	dup point, point@ObjPosMod ;マウスカーソル座標配列
+	dup point, point@ObjPosMod ;クリックされた時のマウスカーソル座標配列
 	dup id, id@ObjPosMod
 	
 	st = 0
