@@ -1,7 +1,7 @@
 // 末尾に @ReadMe.txt, a2d+AlphaLayer.hs 付き
 
 //
-//	a2d+AlphaLayer.hsp - ver.2.2									by MIZUSHIKI
+//	a2d+AlphaLayer.hsp - ver.2.3									by MIZUSHIKI
 //
 #if __hspver__<=$3507
 #packopt manifest "usedAlphaLayer.manifest" ;HSP3.5用(3.5.1では効果なし)
@@ -13,7 +13,7 @@
 #include "a2d.hsp"
 #include "modclbk3.hsp"	// コールバック関数用モジュール
 
-#ifndef setImageToLayer
+#ifndef _init_@AlphaLayerMod
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -70,6 +70,10 @@ __manifest_kakunin__ ;
 #func CallWindowProc "CallWindowProcA" sptr,sptr,sptr,sptr,sptr
 #func CallWindowProcW "CallWindowProcW" wptr,wptr,wptr,wptr,wptr
 
+#uselib "KERNEL32.dll"
+#func GlobalAlloc "GlobalAlloc" sptr,sptr
+#func GlobalFree "GlobalFree" sptr
+
 #uselib "GDI32.dll"
 #cfunc CreateCompatibleDC "CreateCompatibleDC" sptr
 #cfunc CreateCompatibleBitmap "CreateCompatibleBitmap" sptr,sptr,sptr
@@ -86,20 +90,24 @@ __manifest_kakunin__ ;
 #func GdipImageGetFrameCount "GdipImageGetFrameCount" int,int,int
 #func GdipImageSelectActiveFrame "GdipImageSelectActiveFrame" int,int,int
 
-#define WS_POPUP      0x80000000
-#define WS_CHILD      0x40000000
-#define WS_EX_LAYERED 0x00080000
-#define ULW_ALPHA     0x00000002
-#define AC_SRC_OVER   0x00000000
-#define AC_SRC_ALPHA  0x00000001
-#define GWL_STYLE      -16
-#define GWL_EXSTYLE    -20		;拡張ウィンドウスタイル
+#define WS_POPUP          0x80000000
+#define WS_CHILD          0x40000000
+#define WS_EX_LAYERED     0x00080000
+#define ULW_COLORKEY      0x00000001
+#define ULW_ALPHA         0x00000002
+#define ULW_OPAQUE        0x00000004
+#define ULW_EX_NORESIZE   0x00000008
+#define AC_SRC_OVER       0x00000000
+#define AC_SRC_ALPHA      0x00000001
+#define CAPTUREBLT        0x40000000
+#define GWL_STYLE         -16
+#define GWL_EXSTYLE       -20	;拡張ウィンドウスタイル
 #define WS_EX_TRANSPARENT $20	;マウスイベントの透過
-#define DIB_RGB_COLORS 0x0
-#define SRCCOPY        0x00CC0020
-#define BI_RGB         0x0
-#define WM_MOUSEACTIVATE 0x21
-#define MA_NOACTIVATE  3
+#define DIB_RGB_COLORS    0x0
+#define SRCCOPY           0x00CC0020
+#define BI_RGB            0x0
+#define WM_MOUSEACTIVATE  0x21
+#define MA_NOACTIVATE     3
 
 #define HWND_TOP 0	//Z オーダーの先頭
 #define HWND_BOTTOM 1	//Z オーダーの最後
@@ -127,6 +135,8 @@ __manifest_kakunin__ ;
 	dim rgnRect,4
 	winbmscr = 0
 	hwnds = 0
+	alphas = 0  ; UpdateLayeredWindowで指定したアルファ値を取得できる関数はないものか
+	wintypes = 0
 	_templabel = 0
 	oldprocs = 0
 	st = 0
@@ -138,16 +148,12 @@ __manifest_kakunin__ ;
 	frames = 0
 	nsizedelay = 0
 	nsize = 0
-	delaybufindexmax = 0
 
-	dim framess,IMGS_MAX@a2d
-	
-	repeat IMGS_MAX@a2d
-		framess(cnt) = 1
-	loop
-	
-	sdim delayBuf,64
-	lpoke delayBuf,0,0
+	framess = 0
+	loopCounts = 0
+	lpDelay_GblAllocs = 0
+
+	dummyVal = 0
 	
 	// BITMAPINFOHEADER構造体
 	dim BITMAPINFOHEADER, 10
@@ -182,8 +188,7 @@ __manifest_kakunin__ ;
 	//ダミーの関数を定義
 	newclbk3 Proc, 4, *WndProc@AlphaLayerMod
 
-	/*ウィンドウクラスの登録------------------------------------------------------------*/
-	//----------------------------------------------------------------------------------//
+	//-ウィンドウクラスの登録-----------------------------------------------------------//
 	ClassName = "alalLayer"
 	GetStockObject 2
 	hBrush = stat
@@ -222,6 +227,10 @@ __manifest_kakunin__ ;
 		GdipBitmapLockBits@a2d imgImage@a2d, varptr(rect@a2d), 1, PixelFormat32bppPARGB, varptr(BitmapData@a2d)
 		;GdipBitmapUnlockBits@a2d imgImage@a2d, varptr(BitmapData@a2d)
 		ps = BitmapData@a2d(0) * BitmapData@a2d(1) * 4  ; Width * Height * ByPP
+		if BitmapData@a2d(4)==0 || ps==0 {
+			GdipBitmapUnlockBits@a2d imgImage@a2d, varptr(BitmapData@a2d)
+			return -1
+		}
 		dupptr pv, BitmapData@a2d(4), ps
 		;開いたままにして
 		return 0
@@ -237,59 +246,42 @@ __manifest_kakunin__ ;
 	
 #defcfunc alGetFramesCount
 	if imgValid@a2d = 3 {
+		if length(framess) <= imgID@a2d :return 1
 		return framess(imgID@a2d)
 	}
 	return 1
 #defcfunc alGetLoopCount
 	if imgValid@a2d = 3 {
-		ret=-1
-		index=0
-		repeat
-			d = lpeek(delayBuf,index)
-			if d = 0 :break
-			p=lpeek(delayBuf,index+4)	;id
-			l=lpeek(delayBuf,index+8)	;loopCount
-			f=lpeek(delayBuf,index+12)	;frames
-			if p = alGetID() {
-				ret = l
-				break
-			}
-			index += d
-		loop
-
-		return ret
+		if length(loopCounts) <= imgID@a2d : return -1
+		return loopCounts(imgID@a2d)
 	}
 	return -1
 #deffunc alGetFramesDelay array dlys
 	if imgValid@a2d = 3 {
-		ret=0
-		index=0
-		repeat
-			d = lpeek(delayBuf,index)
-			if d = 0 :break
-			p=lpeek(delayBuf,index+4)	;id
-			l=lpeek(delayBuf,index+8)	;loopCount
-			f=lpeek(delayBuf,index+12)	;frames
-			if p = alGetID() {
-				dim dlys,f
-				repeat f
-					dlys(cnt) = lpeek(delayBuf,index+16+4*cnt)*10
-				loop
-				ret = f
-				break
-			}
-			index += d
+		dim dlys,1
+		if length(framess) <= imgID@a2d : return 0
+		if framess(imgID@a2d) == 0 : return 0
+		if length(lpDelay_GblAllocs) <= imgID@a2d : return 0
+		if lpDelay_GblAllocs(imgID@a2d) == 0 : return 0
+
+		dim dlys, framess(imgID@a2d)
+
+		dupptr hMem, lpDelay_GblAllocs(imgID@a2d), framess(imgID@a2d)*4, 4
+		repeat framess(imgID@a2d)
+			dlys(cnt) = hMem(cnt)  ; ミリ秒単位。GIFは10ミリ秒単位だけどロード時に10倍している
 		loop
 
-		return ret
+		return framess(imgID@a2d)
 	}
 	return 0
 ;-----------------------------------------------------------
-#deffunc alCreateImageByAnimationFile int p1, str p2 ; ID, filename
+#define global alCreateImageByAnimationFile(%1,%2,%3=1,%4=0,%5=dummyVal@AlphaLayerMod) _alCreateImageByAnimationFile@AlphaLayerMod %1,%2,%3,%4,%5
+#deffunc _alCreateImageByAnimationFile@AlphaLayerMod int p1, str p2, int p3, int p4, array p5  ; ID, filename, divFrame, divLoopCount, (divDelay)
 
 	alInitModule
 	if gdiplusToken@a2d {
-			
+		divFrame = p3 : if divFrame < 1 : divFrame = 1
+		
 		GdipLoadImageFromFile@a2d p2, varptr(tmpImage); ファイルから読み込み
 		if( tmpImage == 0 ): return -1
 		
@@ -302,45 +294,49 @@ __manifest_kakunin__ ;
 		GdipGetPropertyItemSize tmpImage ,  0x5100 , varptr(nSizeDelay);ディレイを格納するサイズを取得
 		sdim Delay , nSizeDelay
 		GdipGetPropertyItem tmpImage ,  0x5100 , nSizeDelay , varptr(Delay);ディレイを取得
-		GdipGetPropertyItemSize tmpImage , 0x5101 , varptr(nSize);ディレイを格納するサイズを取得
+		GdipGetPropertyItemSize tmpImage , 0x5101 , varptr(nSize);ループ数を格納するサイズを取得
 		sdim loopCount_ , nSize
-		GdipGetPropertyItem tmpImage , 0x5101 , nSize , varptr(loopCount_);ディレイを取得
+		GdipGetPropertyItem tmpImage , 0x5101 , nSize , varptr(loopCount_);ループ数を取得
 		loopCount = wpeek(loopCount_,16)
-		
 		//alCreateImage p1, w@a2d, h@a2d * frames	; 強制的に 32bpp にするために 2 pass でロード
 		; 有効化
 		alDeleteImage p1, 1	; Image ID 削除
-		imgValidArr@a2d(p1) = 3	; Image ID を有効化
+		imgValidArr@a2d(p1) = 3 - 2*(frames<=1) ; Image ID を有効化
 		alSelectImage p1	; 選択 (dup-context change)
 
 		; プロパティ 設定
 		imgWidth@a2d  = w@a2d
 		imgHeight@a2d = h@a2d
 		framess(p1) = frames
-		index = 0
-		repeat
-			d = lpeek(delayBuf,index)
-			if d = 0 :break
-			;lpeek(delayBuf,index+8)
-			;lpeek(delayBuf,index+12)
-			if lpeek(delayBuf,index+4) = p1 {
-				//前のを消す
-				memcpy delayBuf,delayBuf, delayBufIndexMax-(index+d), index, index+d
-				continue
-			}
-			index += d
-		loop
-		delayBufIndexMax = index + nSizeDelay + 4
-		memexpand delayBuf, delayBufIndexMax
-		lpoke delayBuf, index,    nSizeDelay
-		lpoke delayBuf, index+4,  p1
-		lpoke delayBuf, index+8,  loopCount
-		lpoke delayBuf, index+12, frames
-		memcpy delayBuf, Delay, nSizeDelay-16, index+16, 16
-		lpoke delayBuf, index+nSizeDelay, 0
+		loopCounts(p1) = loopCount
+		if length(lpDelay_GblAllocs) > p1 : if lpDelay_GblAllocs(p1) != 0 : GlobalFree lpDelay_GblAllocs(p1) : lpDelay_GblAllocs(p1) = 0
+		if frames > 1 {
+			lpDelay_GblAllocs(p1) = GlobalAlloc( $0/*GMEM_FIXED*/, nSizeDelay)
+			dupptr hMem, lpDelay_GblAllocs(p1), nSizeDelay, 4
+			memcpy hMem, Delay, nSizeDelay-16, 0, 16
+			repeat nSizeDelay/4
+				hMem(cnt) *= 10  ; GIFは10ミリ秒単位なのでここで10倍してしまう
+			loop
+			
+		}else : if divFrame > 1 {
+			frames = 1
+			// pngとかでも分割指定があるときは縦画像をp3コマで割ってアニメーションとする
+			imgValidArr@a2d(p1) = 3
+			imgHeight@a2d = h@a2d / divFrame
+			framess(p1) = divFrame
+			loopCounts(p1) = p4
+			
+			lpDelay_GblAllocs(p1) = GlobalAlloc( $0/*GMEM_FIXED*/, divFrame*4)
+			dupptr hMem, lpDelay_GblAllocs(p1), divFrame*4, 4
+			dim dummyVal,1 : dummyVal = 100  ; デフォルト100ms
+			repeat divFrame
+				if length(p5) > cnt : last = p5(cnt)
+				hMem(cnt) = last
+			loop
+		}
 
 		; オフスクリーンバッファ Image / Graphics 作成
-		GdipCreateBitmapFromScan0@a2d imgWidth@a2d, imgHeight@a2d*(frames), 0, PixelFormat32bppARGB@a2d, 0, varptr(imgImage@a2d)
+		GdipCreateBitmapFromScan0@a2d w@a2d, h@a2d*(frames), 0, PixelFormat32bppARGB@a2d, 0, varptr(imgImage@a2d)
 		GdipGetImageGraphicsContext@a2d imgImage@a2d, varptr(imgGraphics@a2d)
 
 		; デフォルト Brush / Pen 作成
@@ -388,9 +384,9 @@ __manifest_kakunin__ ;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	
-//ウィンドウにアルファレイヤーを追加する
-#define global alalSetParent(%1,%2=-1,%3=0,%4=0,%5=0,%6=_dummyLabel_@AlphaLayerMod) _alalSetParent %1,%2,%3,%4,%5,%6
-#deffunc _alalSetParent int imageID, int haritukeID,  int hide, int posX, int posY, label clbkLabel
+// ウィンドウにアルファレイヤーを追加する
+#define global alalSetParent(%1,%2=-1,%3=0,%4=0,%5=0,%6=_dummyLabel_@AlphaLayerMod) _alalSetParent@AlphaLayerMod %1,%2,%3,%4,%5,%6
+#deffunc _alalSetParent@AlphaLayerMod int imageID, int haritukeID,  int hide, int posX, int posY, label clbkLabel
 
 	if imageID == haritukeID : return
 	if haritukeID < 0 {
@@ -413,7 +409,7 @@ __manifest_kakunin__ ;
 	}
 
 	if length(hwnds)>imageID {
-		if hwnds(imageID) != 0 : DestroyWindow hwnds(imageID)
+		if hwnds(imageID) != 0 && wintypes(imageID) == 0 : DestroyWindow hwnds(imageID)
 	}
 
 	if imageID<IMGS_MAX@a2d {
@@ -427,8 +423,9 @@ __manifest_kakunin__ ;
 	if imageID<IMGS_MAX@a2d {
 		alSelectImage mae_imageID
 	}
-	
 	hwnds(imageID) = alalLayerHwnd
+	alphas(imageID) = 255
+	wintypes(imageID) = 0  ; hwnds増えるとき必ず一緒に
 
 	GetWindowLong alalLayerHwnd, GWL_STYLE
 	SetWindowLong alalLayerHwnd, GWL_STYLE, stat|WS_CHILD|WS_POPUP^WS_POPUP
@@ -446,6 +443,75 @@ __manifest_kakunin__ ;
 	clbkLabel_ = clbkLabel
 	if lpeek(clbkLabel_,0) != lpeek(_dummyLabel_,0) : _setClbk@AlphaLayerMod imageID, clbkLabel
 	
+	return alalLayerHwnd
+
+
+// 透過ウィンドウを作る
+#define global alalWindow(%1,%2,%3=0,%4=0,%5=0) _alalWindow@AlphaLayerMod %1,%2,%3,%4,%5
+#deffunc _alalWindow@AlphaLayerMod int imageID, int windowID,  int p3, int posX, int posY
+
+	if imageID<IMGS_MAX@a2d {
+		if imgValidArr@a2d(imageID) = 0 : return
+	}
+	
+	if length(hwnds)>imageID {
+		if hwnds(imageID) != 0 && wintypes(imageID) == 0 : DestroyWindow hwnds(imageID)
+	}
+	
+	if imageID<IMGS_MAX@a2d {
+		mae_imageID = alGetID()
+		alSelectImage imageID
+	}
+	
+	sxs(imageID) = alGetWidth()
+	sys(imageID) = alGetHeight()
+	
+	bgscr windowID, alGetWidth(), alGetHeight(), screen_hide, posX, posY
+	alalLayerHwnd = hwnd
+	hwnds(imageID) = alalLayerHwnd
+	alphas(imageID) = 255
+	wintypes(imageID) = 1  ; hwnds増えるとき必ず一緒に
+	
+	SetWindowLong alalLayerHwnd, GWL_EXSTYLE, GetWindowLong(alalLayerHwnd, GWL_EXSTYLE) | WS_EX_LAYERED
+	if (p3 & 2) {
+		oncmd gosub *NCHITTEST@AlphaLayerMod, 0x0084/*WM_NCHITTEST*/
+	}
+	if (p3 & 4) {
+		alalWindow_SetTransparent imageID, 1
+	}
+	
+	if imageID<IMGS_MAX@a2d {
+		alSelectImage mae_imageID
+	}
+	
+
+	if imageID<IMGS_MAX@a2d {
+		_alalRedraw imageID, -1 ; ImageID → AlphaLayer に内容をコピー
+	}else {
+		_alalRedraw imageID, alGetID() ; カレントImageID → AlphaLayer に内容をコピー
+	}
+	
+	if (p3 & 1) == 0 : alalShow imageID
+	
+	return alalLayerHwnd
+	
+*NCHITTEST@AlphaLayerMod
+	mref bmscr, 96 + ginfo_intid
+	//既定のプロシージャを呼び出して
+	ret = DefWindowProc( bmscr(13), 0x0084/*WM_NCHITTEST*/, wparam, lparam )
+	if ret == 1/*HTCLIENT*/ {
+		//マウスがクライアント内にあるときタイトルバー上にあると見せかける
+		return 2/*HTCAPTION*/
+	}
+	return ret
+
+#deffunc alalWindow_SetTransparent int imageID, int p2
+	if length(hwnds)<=imageID :return
+	if p2 == 0 {
+		SetWindowLong hwnds(imageID), GWL_EXSTYLE, GetWindowLong(hwnds(imageID), GWL_EXSTYLE) | WS_EX_TRANSPARENT ^ WS_EX_TRANSPARENT
+	}else {
+		SetWindowLong hwnds(imageID), GWL_EXSTYLE, GetWindowLong(hwnds(imageID), GWL_EXSTYLE) | WS_EX_TRANSPARENT
+	}
 	return
 
 ;コールバックをセットする
@@ -507,6 +573,7 @@ __manifest_kakunin__ ;
 	foreach oldprocs
 		if oldprocs(cnt)!=0 {
 			SetWindowLong hwnds(cnt), -4, oldprocs(cnt);		// ウィンドウプロシージャの書き換え
+			oldprocs(cnt) = 0
 		}
 	loop
 	return
@@ -599,7 +666,7 @@ __manifest_kakunin__ ;
 	BITMAPINFOHEADER(2) = biHeight*frames	// biHeight
 	psize(0) = biWidth
 	psize(1) = biHeight
-	poke pblend, 2, 255
+	poke pblend, 2, alphas(imageID)
 	
 
 	hdc_    = GetDC( hwnds(imageID) )
@@ -622,6 +689,7 @@ __manifest_kakunin__ ;
 	if length(hwnds)<=imageID :return
 	poke pblend, 2, bAlpha
 	UpdateLayeredWindow hwnds(imageID), 0, 0, 0, 0, 0, 0, varptr(pblend), ULW_ALPHA
+	alphas(imageID) = bAlpha
 	return
 
 #deffunc alalShow int imageID
@@ -872,11 +940,35 @@ __manifest_kakunin__ ;
 *__dummy__@AlphaLayerMod
 	return
 
+// カーソルがアルファレイヤーに乗っているか
+#define global ctype alalIsOnLayer(%1,%2=ginfo_mx,%3=ginfo_my) _alalIsPointOnLayer@AlphaLayerMod(%1,%2,%3)
+#defcfunc _alalIsPointOnLayer@AlphaLayerMod int imageID, int _mx, int _my, local _rect
+	if length(hwnds)<=imageID :return
+	if alalIsShown(imageID) == 0 : return
+	// まずalalGetRectでリージョンを考慮したRectの中に収まっているかを確認
+	alalGetRect imageID,_rect,-1
+	if _mx<_rect(0) || _rect(2)<_mx || _my<_rect(1) || _rect(3)<_my : return 0
+	// 次に通常のGetWindowRectを使ってPoint下のA2dイメージでの座標を割り出す
+	GetWindowRect hwnds(imageID), varptr(_rect)
+	_rect(0) = _mx - _rect(0), _my - _rect(1)
+	_rect(2) = alGetID()
+	alSelectImage imageID
+	_rect(3) = alGetPixel( _rect(0), _rect(1) )
+	alSelectImage _rect(2)
+	// ピクセルのアルファ値がゼロでなければ乗っている判定
+	return ( ARGB_A( _rect(3) ) != 0 )
+
 #deffunc _deinit_@AlphaLayerMod onexit
 	_AllUnsetCallbackAlphaLayer
 	repeat length(hwnds)
+		if hwnds(cnt) == 0 : continue
 		SetWindowPos hwnds(cnt), 0, 0,0,0,0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW
 		SetParent hwnds(cnt),0
+		if wintypes(imageID) == 0 : DestroyWindow hwnds(cnt)
+	loop
+	repeat length(lpDelay_GblAllocs)
+		if lpDelay_GblAllocs(cnt) == 0 : continue
+		GlobalFree lpDelay_GblAllocs(cnt)
 	loop
 	return
 
@@ -900,7 +992,7 @@ __manifest_kakunin__ ;
 #uselib "msvcrt"
 	#func rename "rename" str, str
 
-#deffunc __manifest_kakunin__
+#deffunc __manifest_kakunin__@a2d_al_debug
 	flg=0
 	//下記すべてを満たせば、改造済みとみなして何もせず戻る。
 	//1.マニフェスト(usedAlphaLayer.manifest)の有無
@@ -938,7 +1030,7 @@ __manifest_kakunin__ ;
 	bload path_exe,m,strsize
 
 	//hsp3.exeの中身を検索してサポートOS表記があるか確認
-	if bsearch( 0, varptr.m, strsize, id_w8os, strlen(id_w8os) ) == -1 {
+	if bsearch@a2d_al_debug( 0, varptr.m, strsize, id_w8os, strlen(id_w8os) ) == -1 {
 		//無ければ書き換えて良いかを聞く
 		if hspver != $3507 {
 			;HSP3.51
@@ -1013,12 +1105,12 @@ __manifest_kakunin__ ;
 	return
 	
 #uselib "kernel32.dll"		// マシン語実行用メモリ確保
-#func global VirtualProtect	"VirtualProtect"	var, int, int, var
-#define global mdim(%1,%2)dim %1,%2 :VirtualProtect %1,(%2)*4,$40,AZSD
+#func VirtualProtect	"VirtualProtect"	var, int, int, var
+#define mdim(%1,%2)dim %1,%2 :VirtualProtect %1,(%2)*4,$40,AZSD
 ; bsearch 2006/03/29	Ver 0.9
 // バイナリサーチ(BM法) : 開始index, bufポインタ, サイズ , 検索キー,検索キーの長さ
 // statに開始indexからのバイト数が返ります。見つからない場合は-1
-#defcfunc bsearch int i, int pbuf,int size, var key,int lkey
+#defcfunc bsearch@a2d_al_debug int i, int pbuf,int size, var key,int lkey
 	if bm=0{ mdim bm,49 : pbm=varptr.bm
 	bm. 0= $81EC8B55,$000400EC,$10558B00,$758B5653,$01FE8314,$324CB60F,$227557FF
 	bm. 7= $4539C033,$928E0F0C,$8B000000,$B60F0855,$D13B1014,$0086840F,$3B400000
@@ -1044,9 +1136,9 @@ _init_@AlphaLayerMod
 
 ━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 モジュール名│a2d+AlphaLayer.hsp
-  バージョン│2.2
+  バージョン│2.3
         作者│MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
-            │                                  Copyright(C) 2019-2021 MIZUSHIKI
+            │                                  Copyright(C) 2019-2022 MIZUSHIKI
 ━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ■ 概要 ■
@@ -1082,6 +1174,8 @@ Artlet2Dモジュール(a2d.hsp)の仮想イメージを用いて、アルファブレンド半透明 子ウィ
 ￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
 alalSetParent
 　Artlet2D仮想イメージをアルファレイヤー子ウィンドウとして描画先ウィンドウに貼り付ける
+alalWindow
+　Artlet2D仮想イメージを用いてレイヤードウィンドウを作成
 alalRedraw
 　アルファレイヤーにArtlet2D仮想イメージを再描画する
 alalCallback
@@ -1104,6 +1198,8 @@ alalZbottom
 　アルファレイヤーをZオーダー（表示順序）の一番下に配置する
 alalZnext
 　アルファレイヤーのZオーダー（表示順序）を指定したウィンドウの下に配置する
+alalWindow_SetTransparent
+　alalWindowで作成したレイヤードウィンドウのクリック透過モードを変更
 
 【Artlet2D拡張】
 alCreateImageByAnimationFile
@@ -1138,26 +1234,37 @@ alGetLoopCount
 
 ■ 履歴
 ￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+ version 2.3   2022/11/16
+ ￣￣￣￣￣￣￣￣￣￣￣￣
+ ・alalWindow,alalWindow_SetTransparent関数を追加。
+ ・alalSetParent後のstatに子ウィンドウのウィンドウハンドルを格納するようにした。
+ ・alCreateImageByAnimationFileで画像を縦に並べたPNGファイルでもアニメーションと
+ 　して読み込みが可能になった。
+ ・alalAlphaで透明度変更後にalalRedrawしても透明度を維持するようにした。
+ ・重複コンパイル防止処理が機能していなかったバグを修正。
+ ・終了時のウィンドウ破棄し忘れを修正。
+ ・細かい箇所の変更と修正。
+
  version 2.2   2021/ 6/25
  ￣￣￣￣￣￣￣￣￣￣￣￣
-　・Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから発生したバグに対処。
-　　　非表示状態で作成しても表示されてしまう。(一度VISIBLE→非VISIBLE処理が必要)
-　　　非表示の子レイヤーに張り付けた孫レイヤーが見えてしまう。
-　　　　↑プログラムで回避必要。(詳細：alalSetParentのHelp参照)
-　・CallWindowProcが定義されていなかったバグを修正。
+ ・Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから発生したバグに対処。
+ 　　非表示状態で作成しても表示されてしまう。(一度VISIBLE→非VISIBLE処理が必要)
+ 　　非表示の子レイヤーに張り付けた孫レイヤーが見えてしまう。
+ 　　　↑プログラムで回避必要。(詳細：alalSetParentのHelp参照)
+ ・CallWindowProcが定義されていなかったバグを修正。
 
  version 2.1   2020/ 9/10
  ￣￣￣￣￣￣￣￣￣￣￣￣
-　・GIFアニメーションファイルの読み込みに対応。【Artlet2D拡張】
-　　　alCreateImageByAnimationFile
-　　　alGetFramesDelay
-　　　alGetFramesCount
-　　　alGetLoopCount
-　・alalIsShown関数を追加。
-　・A2DのImage ID１つにつきアルファレイヤー1つじゃなくても利用できる裏技を内包。 
-  ・デバイスコンテキストが一部解放されていなかった問題を修正。
-　・未初期化変数の初期化処理を入れるよう修正。
-　・alalWidthでサイズを0以下にすると以降再表示できなくなるバグを修正。
+ ・GIFアニメーションファイルの読み込みに対応。【Artlet2D拡張】
+ 　　alCreateImageByAnimationFile
+ 　　alGetFramesDelay
+ 　　alGetFramesCount
+ 　　alGetLoopCount
+ ・alalIsShown関数を追加。
+ ・A2DのImage ID１つにつきアルファレイヤー1つじゃなくても利用できる裏技を内包。 
+ ・デバイスコンテキストが一部解放されていなかった問題を修正。
+ ・未初期化変数の初期化処理を入れるよう修正。
+ ・alalWidthでサイズを0以下にすると以降再表示できなくなるバグを修正。
 
  version 2.0   2020/ 6/ 6
  ￣￣￣￣￣￣￣￣￣￣￣￣
@@ -1184,14 +1291,14 @@ alGetLoopCount
 %type
 拡張命令
 %ver
-2.2
+2.3
 %note
 a2d+AlphaLayer.hspをインクルードすること。
 対応OS：Windows 8 以降
 %dll
 a2d+AlphaLayer
 %date
-2021/7/18
+2022/11/16
 %author
 MIZUSHIKI
 %url
@@ -1210,7 +1317,7 @@ Artlet2D仮想イメージをアルファレイヤー子ウィンドウとして描画先ウィンドウに貼り付
 p1, p2,p3,p4,p5,*label
 p1=0～        : Artlet2D仮想イメージID
 
-p2=-1～(-1)   : 貼り付け先の指定（省略 = 描画先ウィンドウ, 0～ = 既に作ったアルファレイヤーのArtlet2D仮想イメージID）
+p2=-1～(-1)   : 貼り付け先の指定（省略(-1) = 描画先ウィンドウ, 0～ = 既に作ったアルファレイヤーのArtlet2D仮想イメージID）
 p3=0,1(0)     : 非表示張り付けフラグ(1 = 非表示)
 p4=0～(0) : ウィンドウの配置X
 p5=0～(0) : ウィンドウの配置Y
@@ -1236,9 +1343,9 @@ html{
 　　　以降、4 ⇔ 5 を繰り返す。
 
 p2 以降を指定することで、既存アルファレイヤーの子アルファレイヤーとして張り付けたり、最初は非表示にしたり、一度にコールバック処理を指定したりすることができます。
-
 非表示で張り付けた場合はalalShowで表示できます。
 
+statにアルファレイヤー子ウィンドウのウィンドウハンドルが格納されます。
 
 【裏技】
 p1に512以上を指定するすることもできます。
@@ -1251,9 +1358,18 @@ Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから動作がおかしくなってしまいま
 非表示のウィンドウまたは既に作った非表示のアルファレイヤー子ウィンドウに新規のアルファレイヤー子ウィンドウを貼り付けた場合、本来新規の子ウィンドウは見えないはずなのですが表示されてしまうというバグ(?)が発生しています。
 一度、親とするウィンドウまたはアルファレイヤー子ウィンドウを表示状態のまま下層のレイヤーを作り、全て貼り付け終えた後に alalHide で[子レイヤー]を非表示にするという処置を行う必要があります。
 
+%sample
+#include "a2d+AlphaLayer.hsp"
+	// 背景
+	picload dir_tv+"sozai4.jpg"
+	// キャラ
+	alCreateImageByFile 0, dir_tv+"tamane_y2.png" ; 画像を読み込み
+	alalSetParent 0,,, 50,0 ; イメージID 0を描画先ウィンドウに貼り付け
+	stop
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1265,7 +1381,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
-
+alalIsOnLayer
+alalWindow_SetTransparent
 
 %index
 alalRedraw
@@ -1303,9 +1420,27 @@ p3には、alCreateImageByAnimationFile を使ってアニメーションGIF(TIFF)を読み込んだ
 alalSetParentのp1には512番以降を指定することもできます。
 alalRedrawのp2を利用することでArtlet2D仮想イメージIDと同じ番号にとらわれることのないアルファレイヤー画像の更新が行えます。
 
+%sample
+#include "a2d+AlphaLayer.hsp"
+
+	// キャラ素材ロード
+	alCreateImageByFile 0, dir_tv+"tamadot.png" ; 仮想イメージ(イメージID 0)
+	
+	// キャラ
+	alCreateImage 1, 64,64 ; 仮想イメージ(イメージID 1)を作って
+	alalSetParent 1,,, 100,380 ; イメージID 1を貼り付け。
+	
+	// キャラクターアニメーション：alCopyImageToImage と alalRedraw を繰り返す
+	repeat
+		alErase
+		alCopyImageToImage 0,1, 0,0,64,64, 64*(4+cnt\4),0 ; イメージID 0 から 1 へ 歩きモーション(1～4)をコピー
+		alalRedraw 1 ; イメージID 1 のアルファレイヤーを更新。
+		wait 50
+	loop
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1317,6 +1452,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 alCreateImageByAnimationFile
 
 
@@ -1377,9 +1514,51 @@ html{
 timer_waiton/timer_awaiton を併用してください。
 （mod_TimerRepeat.hsp をインクルードすればwait/awaitの機能が上書きされます。）
 
+%sample
+#include "a2d+AlphaLayer.hsp"
+#include "mod_TimerRepeat.hsp"
+
+	// キャラ素材ロード
+	alCreateImageByFile 0, dir_tv+"tamadot.png"
+	
+	// キャラ
+	alCreateImage 1, 64,64 ; 仮想イメージ(イメージID 1)
+	alalSetParent 1,,, 100,380
+	alalCallback 1,*click
+	mes "珠音ちゃんをクリックしてみよう！"
+	
+	// alCopyImageToImage と alalRedraw を繰り返す
+	repeat
+		alErase
+		alCopyImageToImage 0,1, 0,0,64,64, 64*(4+cnt\4),0 ; 歩きモーション
+		alalRedraw 1
+		wait 50
+		if dame>0 {
+			while dame
+				dame = 0
+				wait 100
+			wend
+		}
+	loop
+	stop
+
+*click
+	switch iparam
+		case 0x0201 ;WM_LBUTTONDOWN
+			mes "痛っ！"
+			dame=1
+			alCopyImageToImage 0,1, 0,0,64,64, 64*1,0 ; ダメージモーション
+			alalRedraw 1
+		
+			alalGetRect 1, rect ; アルファレイヤー(ID 1)の位置を取得
+			alalWidth 1, ,, rect(0),rect(1)-20 ; アルファレイヤー(ID 1)の位置を移動
+			swbreak
+	swend
+	return
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1391,6 +1570,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 
 
 %index
@@ -1408,6 +1589,7 @@ p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1419,6 +1601,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 %index
 alalIsShown
 ; 見出し を記入
@@ -1442,6 +1626,7 @@ p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
 %href
 ; 関連項目 を記入
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1453,6 +1638,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 
 %group
 ; グループ を記入
@@ -1472,6 +1659,7 @@ p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1483,6 +1671,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 %index
 alalAlpha
 アルファレイヤーの透明度を設定する
@@ -1500,6 +1690,7 @@ p2=0～255 : 透明度（0=透明）
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1511,6 +1702,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 
 %group
 画面制御命令
@@ -1591,6 +1784,7 @@ html{
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1602,7 +1796,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
-
+alalIsOnLayer
+alalWindow_SetTransparent
 %index
 alalGetRect
 アルファレイヤー子ウィンドウの左上・右下座標の取得
@@ -1649,6 +1844,7 @@ html{
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1660,6 +1856,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 
 %group
 拡張入出力命令
@@ -1680,6 +1878,7 @@ Zオーダー（表示順序）を一番上にします。
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1691,6 +1890,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 %index
 alalZbottom
 アルファレイヤーをZオーダー（表示順序）の一番下に配置する
@@ -1707,6 +1908,7 @@ Zオーダー（表示順序）を一番下にします。
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1718,6 +1920,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 %index
 alalZnext
 アルファレイヤーのZオーダー（表示順序）を指定したウィンドウの下に配置する
@@ -1735,6 +1939,7 @@ Zオーダー（表示順序）を指定したウィンドウの下にします。
 
 %href
 alalSetParent
+alalWindow
 alalRedraw
 alalCallback
 alalShow
@@ -1746,6 +1951,8 @@ alalGetRect
 alalZtop
 alalZbottom
 alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
 %index
 alCreateImageByAnimationFile
 ; 見出し を記入
@@ -1753,10 +1960,14 @@ GIF(TIFF)アニメーションファイルから仮想イメージを作成
 
 %prm
 ; パラメータリスト を記入
-ID,"file"
+ID,"file"(, p3,p4,p5)
 ; パラメータ説明文 を記入
 ID : Image ID
  "file" : 読み込みファイル名
+
+p3=1～(1) : フレーム分割数
+p4=0～(0) : ループ回数
+p5[省略可] : 配列変数（フレーム間の時間間隔[ミリ秒単位]）
 
 %inst
 ; 解説文 を記入
@@ -1773,7 +1984,13 @@ GIF(TIFF)アニメーションファイルを読み込んで仮想イメージを作成します。
 　alCopyImageToScreen 1,0, 100,100, alGetWidth(),alGetHeight(), 0,alGetHeight()*5
 等のようにコピー元の座標を特定フレーム分下側に指定してください。
 
-また、alalRedraw の描画更新では p3 にフレーム番号を指定して表示させることができます。
+また、alalRedraw の描画更新では alalRedrawのp3 にフレーム番号を指定して表示させることができます。
+
+---
+通常のPNGファイル等でも p3,p4,p5 を指定してアニメーション画面として読み込むことが出来るようになりました。
+画像ファイルは各コマ同じサイズのアニメーション画像を縦に並べた１つの画像として用意してください。
+p3 でフレーム数を指定するとそのコマ数のアニメーションとして画像を分割して読み込みます。
+p4,p5 は指定してもしなくてもアニメーションに影響を与えることはありませんが、alGetFramesCount、alGetFramesDelay でGIFファイルと同じように値を取得できるようになります。
 
 %sample
 ; サンプルスクリプト を記入
@@ -1790,6 +2007,142 @@ alalRedraw
 %group
 ; グループ を記入
 ファイル操作
+%index
+alalWindow
+Artlet2D仮想イメージを用いてレイヤードウィンドウを作成
+
+%group
+画面制御命令
+
+%prm
+p1, p2,p3,p4,p5
+p1=0～        : Artlet2D仮想イメージID
+p2=0～   : ウィンドウID
+p3=0～(0)     : 初期化する画面のオプション
+p4=0～(0) : ウィンドウの配置X
+p5=0～(0) : ウィンドウの配置Y
+
+
+%inst
+p1で指定したArtlet2D仮想イメージを持つレイヤードウィンドウを作成します。
+このレイヤードウィンドウはp2ウィンドウIDのbgscrで初期化されており、初期化画面サイズはalCreateImage等で作成されたときのサイズとなります。
+
+p3の初期化する画面オプションは、以下から選ぶことができます。
+
++1 : 非表示
++2 : ドラッグして移動可能
++4 : クリック透過モード
+
+「+2」を指定した場合、画面内をクリックするとタイトルバーをクリックしたことと同じになります。
+「+4」を指定した場合、画面内をクリックしてもウィンドウの後ろ側をクリックしたことになります。
+クリック透過モードは alalWindow_SetTransparent で変更することができます。
+
+ウィンドウのアクティブ化や最前面化、表示非表示はgsel命令が使えます。
+ウィンドウ内容の変更は alalSetParent したときと同じで alalRedraw を使います。詳細は alalSetParent のヘルプを参照ください。
+
+このレイヤードウィンドウにはbuttonコントロールや他のアルファレイヤー子ウィンドウ等は載せることはできません。
+
+%sample
+#include "a2d+AlphaLayer.hsp"
+
+	alCreateImageByFile 0, dir_tv+"runner.png"
+	// レイヤードウィンドウを作成（p3=2でドラッグしてウィンドウを移動できます）
+	alalWindow 0,1, 2
+	gsel 1,2
+	stop
+
+%href
+alalSetParent
+alalWindow
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
+
+%index
+alalWindow_SetTransparent
+alalWindowで作成したレイヤードウィンドウのクリック透過モードを変更
+
+%group
+画面制御命令
+
+%prm
+p1,p2
+p1=0～ : Artlet2D仮想イメージID（レイヤードウィンドウ）
+p2=0,1 : クリック透過モード
+
+%inst
+alalWindowで作成したレイヤードウィンドウのクリック透過モードを変更します。
+0 : 解除
+1 : クリック透過モードにする
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+alalSetParent
+alalWindow
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
+
+
+%index
+alalIsOnLayer
+マウスカーソルがアルファレイヤーの上に乗っているか取得
+
+%prm
+(p1)
+p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
+
+%inst
+マウスカーソルがアルファレイヤー子ウィンドウの上に乗っているかどうかを取得。
+　0 = 乗っていない
+　1 = 乗っている
+
+%sample
+; サンプルスクリプト を記入
+
+%href
+alalSetParent
+alalWindow
+alalRedraw
+alalCallback
+alalShow
+alalIsShown
+alalHide
+alalAlpha
+alalWidth
+alalGetRect
+alalZtop
+alalZbottom
+alalZnext
+alalIsOnLayer
+alalWindow_SetTransparent
+
+
+%group
+拡張入出力命令
+
 %index
 alGetFramesDelay
 ; 見出し を記入
