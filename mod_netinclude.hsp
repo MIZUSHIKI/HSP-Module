@@ -111,12 +111,11 @@ MIZUSHIKI
 						s@@+="\n>"+a@@.cnt
 					}else{
 						if""!j@@{nkfcnv b@@,b@@,j@@,,stat} ;utf8フラグがあればsjisに変換する
-					logmes b@@
 						if""!a@@.cnt.4{b@@=submatch(b@@,a@@.cnt.4,,1)} ;ネットのページの一部からモジュールを切り出したいときの正規表現
 						m@@=getpath(a@@.cnt,8)
 						notesel b@@
 						notesave m@@ ;モジュールファイルの保存
-						if instr(j@@,0,"D")!-1{ ;どうしてもHTMLエンティティをデコードしたかったので-H隠しコマンドでpowershellを利用してHTMLデコード
+						if instr(j@@,0,"D")!-1{ ;どうしてもHTMLエンティティをデコードしたかったので D 隠しコマンドでpowershellを利用してHTMLデコード。ついでに<br>も改行化
 							m@@=dir_cur+"/"+m@@
 							exec "powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '"+m@@+"' -Raw;$d=[System.Web.HttpUtility]::HtmlDecode($s.Replace('<br>',\\\"`r`n\\\"));Set-Content -Path '"+m@@+"' $d;\"",2
 						}
