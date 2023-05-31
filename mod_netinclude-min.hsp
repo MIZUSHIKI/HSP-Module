@@ -1,8 +1,28 @@
-#ifdef _debug
-#include "hspinet.as"
-#include "mod_regexp.as"
-#define netinclude(%1,%2=_@_@) addition %1*
-exist"hsptmp":if strsize>0{a@_@="":b@_@="":w@_@=dir_exe+"\\common\\":y@_@="#net\include":notesel a@_@:noteload"hsptmp":noteunsel:matches a@_@,a@_@,y@_@+"\\s*\"((?:net/)?)(.+?)\"\\s*/\\s*,?\\s*(\\w*)":repeat stat:x@_@=w@_@:if"current"=a@_@.cnt.3{x@_@=""}exist x@_@+a@_@.cnt.1+a@_@.cnt.2:a@_@.cnt="0":if strsize<0{a@_@.cnt="":if""=x@_@{a@_@.cnt.3="2":m@_@++}else{a@_@.cnt.3="1":n@_@++}}loop:if n@_@+m@_@>0{s@_@="","","":z@_@="ãƒ€ã‚¦ãƒ³ãƒ­ãƒ¼ãƒ‰":repeat 2,1:i@_@=cnt:foreach a@_@:if"0"=a@_@.cnt{continue}if""+i@_@!a@_@.cnt.3{continue}if""!a@_@.cnt.1{if""=b@_@{netinit:neturl"https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php?req=data":netrequest_get"":repeat:netexec n@_@:if n@_@{break}await 50:loop:netgetv b@_@:matches b@_@,b@_@,"^(.*?)\t(.*?)$":j@_@=stat}k@_@=cnt:a@_@.cnt="0":repeat j@_@:if getpath(b@_@.cnt.1,16)=getpath(a@_@.k@_@.2,16){a@_@.k@_@=b@_@.cnt.2:a@_@.k@_@.2=b@_@.cnt.1:break}loop:if"0"=a@_@.cnt{continue}s@_@.i@_@+=">net/(->"+a@_@.cnt+")"+a@_@.cnt.2+"\n"}else{s@_@.i@_@+=">"+a@_@.cnt.2+"\n"}loop:loop:if""=s@_@.1+s@_@.2{dialog"ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ãƒ‡ãƒ¼ã‚¿ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã§ã—ãŸ",1,y@_@:end}if""!s@_@.1{s@_@.0+=w@_@+"\n\nã«\n\n"+s@_@.1:if""!s@_@.2{s@_@.0+="\nã‚’"+z@_@+"ã€\n------\n\n"}}if""!s@_@.2{s@_@.0+=dir_cur+"\n\nã«\n\n"+s@_@.2}dialog s@_@.0+"\nã‚’"+z@_@+"ã—ã¾ã™ã€‚",2,y@_@:if stat=6{s@_@="":x@_@=dir_cur:if""=b@_@{netinit}foreach a@_@:if"0"=a@_@.cnt{continue}if"1"=a@_@.cnt.3{chdir w@_@}a@_@.cnt.1+=a@_@.cnt.2:split a@_@.cnt.1,"/",b@_@:repeat stat-1:dirlist _@_@,b@_@.cnt,5:if stat=0{mkdir b@_@.cnt}chdir b@_@.cnt:loop:a@_@.cnt=a@_@.cnt+a@_@.cnt.2:neturl"https://raw.githubusercontent.com/"+a@_@.cnt:netrequest_get"":repeat:netexec n@_@:if n@_@{break}await 50:loop:netgetv b@_@:if"40"=strmid(b@_@,0,2){s@_@+=">"+a@_@.cnt+"\n"}else{notesel b@_@:notesave getpath(a@_@.cnt,8)}chdir x@_@:loop:if""!s@_@{dialog z@_@+"ã«å¤±æ•—ã—ã¾ã—ãŸã€‚\n\n"+s@_@,,y@_@:end}dialog z@_@+"ã—ã¾ã—ãŸã€‚\nHSPã‚’å†å®Ÿè¡Œã—ã¦ä¸‹ã•ã„ã€‚",,y@_@:end}}sdim a@_@}
-#else
-#define netinclude(%1,%2=_@_@) include %1
-#endif
+#ifdef _debug///////////////////////////////////////////////////////////////////////////////////////////////
+#include"hspinet.as"//////////////////////////////////////////////////// mod_netinclude-min.hsp - Ver.3.0 //
+#include"mod_regexp.as"///////////////////////////////////////////////////////////////////// by MIZUSHIKI //
+#define netinclude(%1,%2=0,%3=0,%4=0) addition %1*//////////////////////////////////////////////////////////
+a@@="":w@@=dir_exe+"\\common\\":y@@="#net\include":notesel a@@:noteload"hsptmp":i@@="(?:\\s*,\\s*\"(.*?)\")?
+noteunsel:matches a@@,a@@,y@@+"\\s*\"((?:net/|https?)?)(.+?)\"\\s*/\\s*,?\\s*(\\w*)"+i@@+i@@:b@@="0"::::::::
+repeat stat:a@@.cnt="0":x@@=w@@:if"current"=a@@.cnt.3{x@@=""}exist x@@+a@@.cnt.1+a@@.cnt.2:if strsize<0{::::
+if""!b@@{netinit:b@@=""}a@@.cnt="":if""=x@@{a@@.cnt.3="2":m@@++}else{a@@.cnt.3="1":n@@++}}loop:if n@@+m@@>0{
+s@@="","","":z@@="ƒ_ƒEƒ“ƒ[ƒh":repeat 2,1:i@@=cnt:foreach a@@:if"0"=a@@.cnt{continue}if""+i@@!a@@.cnt.3{:::
+continue}if"net/"=a@@.cnt.1{a@@.cnt="0":k@@=cnt:if""=b@@{neturl"https://timetag.main.jp/HSP3NetModules/netm"
+netrequest_get"od.php?req=data":do:wait 5:netexec n@@:until n@@:netgetv b@@:matches b@@,b@@,"^(.*?)\t(.*?)$"
+j@@=stat}repeat j@@:if getpath(b@@.cnt.1,16)=getpath(a@@.k@@.2,16){a@@.k@@=b@@.cnt.2:a@@.k@@.2=b@@.cnt.1::::
+break}loop:if"0"=a@@.cnt{continue}s@@.i@@+=">net/(->"+a@@.cnt+")"+a@@.cnt.2+"\n"}else{s@@.i@@+=">"+a@@.cnt.1
+s@@.i@@+=a@@.cnt.2+"\n"}loop:loop:if""!s@@.1{s@@.0+=w@@+"\n\n‚É\n\n"+s@@.1:if""!s@@.2{s@@.0+="\n‚ğ"+z@@+"A"
+s@@.0+="\n------\n\n"}}if""=s@@.1+s@@.2{dialog"ƒ‚ƒWƒ…[ƒ‹ƒf[ƒ^‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ‚Å‚µ‚½",1,y@@:end}if""!s@@.2{
+s@@.0+=dir_cur+"\n\n‚É\n\n"+s@@.2}dialog s@@.0+"\n‚ğ"+z@@+"‚µ‚Ü‚·B",2,y@@:if stat=6{s@@="":x@@=dir_cur:::::
+foreach a@@:if"0"=a@@.cnt{continue}if"1"=a@@.cnt.3{chdir w@@}a@@.cnt.3=a@@.cnt.1+":/":a@@.cnt.1+=a@@.cnt.2::
+split a@@.cnt.1,"/",b@@:repeat stat-1:dirlist i@@,b@@.cnt,5:if stat=0{mkdir b@@.cnt}chdir b@@.cnt:loop::::::
+if$70747468!lpeek(a@@.cnt.1){a@@.cnt.3="https://raw.githubusercontent.com/"}a@@.cnt+=a@@.cnt.2:j@@=a@@.cnt.5
+neturl replace(replace(a@@.cnt.3+a@@.cnt,"#.*$",""),"H","?"):netrequest_get"":do:wait 5:netexec n@@::::::::
+until n@@:netgetv b@@:if n@@<0{s@@+="\n>"+a@@.cnt}else{if""!j@@{nkfcnv b@@,b@@,j@@,,stat}if""!a@@.cnt.4{::::
+b@@=submatch(b@@,a@@.cnt.4,,1)}m@@=getpath(a@@.cnt,8):notesel b@@:notesave m@@:if instr(j@@,0,"D")!-1{::::::
+m@@=dir_cur+"/"+m@@:k@@="powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '"+m@@+"' -Raw;$d=[S"
+k@@+="ystem.Web.HttpUtility]::HtmlDecode($s.Replace('<br>',\\\"`r`n\\\"));Set-Content -Path '"+m@@+"' $d;\""
+exec k@@,2}}chdir x@@:loop:if""!s@@{dialog z@@+"¸”s\n"+s@@:end}dialog z@@+"Š®—¹B\nÄÀs‚µ‚Ä‰º‚³‚¢":end}}:
+#else///////////////////////////////////////////////////////////////////////////////////////////////////////
+#define netinclude(%1,%2=0,%3=0,%4=0) include %1//////////////////////////////////// Download HSP3 module //
+#endif//////////////////////////////////////////////////////////////////////////////////////////////////////

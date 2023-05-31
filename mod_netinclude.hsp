@@ -5,9 +5,9 @@
 %dll ; モジュール名 :
 mod_netinclude
 %ver ; バージョン :
-2.0
+3.0
 %date ; 更新日 :
-2022/4/1
+2023/5/31
 %author ; 著作者 :
 MIZUSHIKI
 
@@ -19,101 +19,124 @@ MIZUSHIKI
 ;デバッグ時のみ #netinclude 処理を実行
 #include "hspinet.as" ;デバッグ時の2つのincludeは我慢してもらう。しか・・・
 #include "mod_regexp.as"
-#define netinclude(%1,%2=_@_@) addition %1*
+#define netinclude(%1,%2=0,%3=0,%4=0) addition %1*
 	exist"hsptmp" ;#addition(#include) の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く。(命令が成立すると右側が無視される) 
-	if strsize>0{ ;なるべく文字数を削減したい、が諦めた
-		a@_@="":b@_@="":w@_@=dir_exe+"\\common\\":y@_@="#net\include" ;初期化 (y@_@の\はmin版の時のmatches検索回避の為)
-		notesel a@_@:noteload"hsptmp":noteunsel ;hsptmp読み込み
-		matches a@_@,a@_@,y@_@+"\\s*\"((?:net/)?)(.+?)\"\\s*/\\s*,?\\s*(\\w*)" ;#netinclude部分を読み取り
+	if strsize>0{ ;なるべく文字数を削減したい
+		a@@="":b@@="0":w@@=dir_exe+"\\common\\":y@@="#net\include":i@@="(?:\\s*,\\s*\"(.*?)\")?" ;変数初期化と省略化 (y@@の\はmin版の時のmatches検索回避の為)
+		notesel a@@:noteload"hsptmp":noteunsel ;hsptmp読み込み
+		matches a@@,a@@,y@@+"\\s*\"((?:net/|https?)?)(.+?)\"\\s*/\\s*,?\\s*(\\w*)"+i@@+i@@ ;#netinclude部分を読み取り
 		repeat stat
-			x@_@=w@_@:if"current"=a@_@.cnt.3{x@_@=""}
-			exist x@_@+a@_@.cnt.1+a@_@.cnt.2 ;ファイルがダウンロード済みなら何もしない
-			a@_@.cnt="0" ;ダウンロードしない
-			if strsize<0{ ;a@_@(cnt,0);ダウンロードフラグ / n,m;カウント
-				a@_@.cnt=""
-				if""=x@_@{a@_@.cnt.3="2":m@_@++}else{a@_@.cnt.3="1":n@_@++}
+			a@@.cnt="0" ;ダウンロードしないフラグを立てておく
+			x@@=w@@:if"current"=a@@.cnt.3{x@@=""}
+			exist x@@+a@@.cnt.1+a@@.cnt.2 ;ファイルの存在を確認。ダウンロード済みなら何もしない
+			if strsize<0{ ;a@@.cnt.0=ダウンロードフラグ / m@@,n@@;カウント
+				if""!b@@{netinit:b@@=""} ;ここでhspinetの初期化をしてしまう
+				a@@.cnt="" ;"0"を消してダウンロードするフラグにする
+				if""=x@@{
+					a@@.cnt.3="2":m@@++ ;m@@はcommonにダウンロードする数。
+				}else{
+					a@@.cnt.3="1":n@@++ ;n@@はcurrentにダウンロードする数。
+				} ;common,currentが入り乱れててもそれぞれ塊に出来るようにa@@.cnt.3に識別番号を入れている
 			}
 		loop
-		if n@_@+m@_@>0{
-			s@_@="","","":z@_@="ダウンロード"
+		if n@@+m@@>0{ ;common,currentのどちらかにダウンロードする
+			s@@="","","":z@@="ダウンロード"
 			repeat 2,1
-				i@_@=cnt
-				foreach a@_@
-					if"0"=a@_@.cnt{continue}
-					if""+i@_@!a@_@.cnt.3{continue}
-					if""!a@_@.cnt.1{
-						if""=b@_@{
-							netinit ;hspinetの初期化
-							neturl"https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php?req=data"
+				i@@=cnt ;cnt==1のときcurrentを処理。cnt==2のときcommonを処理
+				foreach a@@
+					if"0"=a@@.cnt{continue} ;ダウンロードしないフラグ
+					if""+i@@!a@@.cnt.3{continue} ;currentとcommonの振り分け
+					if"net/"=a@@.cnt.1{ ;登録されているモジュールデータを扱う
+						if""=b@@{ ;登録データを取得
+							neturl"https://timetag.main.jp/HSP3NetModules/netmod.php?req=data"
 							netrequest_get""
-							repeat
-								netexec n@_@ ;結果待ちのためのループ
-								if n@_@{break}
-								await 50
-							loop
-							netgetv b@_@ ;受信データを代入
-							matches b@_@,b@_@,"^(.*?)\t(.*?)$"
-							j@_@=stat
+							do
+								wait 5
+								netexec n@@
+							until n@@
+							netgetv b@@ ;受信データ
+							matches b@@,b@@,"^(.*?)\t(.*?)$" ;配列に入れ直す
+							j@@=stat
 						}
-						k@_@=cnt:a@_@.cnt="0"
-						repeat j@_@
-							if getpath(b@_@.cnt.1,16)=getpath(a@_@.k@_@.2,16){a@_@.k@_@=b@_@.cnt.2:a@_@.k@_@.2=b@_@.cnt.1:break} ;netloadで大文字小文字問われるのでHSP3NetModulesでのファイル名に置き換え
+						k@@=cnt:a@@.cnt="0" ;ダウンロードしないフラグを立てて登録データ内に該当モジュールが存在するか確認
+						repeat j@@
+							if getpath(b@@.cnt.1,16)=getpath(a@@.k@@.2,16){ ;モジュールがあった。
+								a@@.k@@=b@@.cnt.2:a@@.k@@.2=b@@.cnt.1:break ;a@@.cntにGitHubリポジトリ。netloadで大文字小文字問われるのでa@@.cnt.2を登録データ名に置き換え
+							}
 						loop
-						if"0"=a@_@.cnt{continue}
-						s@_@.i@_@+=">net/(->"+a@_@.cnt+")"+a@_@.cnt.2+"\n"
-					}else{
-						s@_@.i@_@+=">"+a@_@.cnt.2+"\n"
+						if"0"=a@@.cnt{continue} ;モジュールが無かったら無視する
+						s@@.i@@+=">net/(->"+a@@.cnt+")"+a@@.cnt.2+"\n" ;ダウンロード予定のデータ
+					}else{ ;リポジトリ込みで指定されているか、httpダウンロードか
+						s@@.i@@+=">"+a@@.cnt.1+a@@.cnt.2+"\n" ;ダウンロード予定のデータ
 					}
 				loop
 			loop
-			if""=s@_@.1+s@_@.2{dialog"モジュールデータが見つかりませんでした",1,y@_@:end}
-			if""!s@_@.1{s@_@.0+=w@_@+"\n\nに\n\n"+s@_@.1:if""!s@_@.2{s@_@.0+="\nを"+z@_@+"、\n------\n\n"}}
-			if""!s@_@.2{s@_@.0+=dir_cur+"\n\nに\n\n"+s@_@.2}
-			dialog s@_@.0+"\nを"+z@_@+"します。",2,y@_@
+			if""=s@@.1+s@@.2{dialog"モジュールデータが見つかりませんでした",1,y@@:end}               ;minバージョンでは、この3行ifの順番は良い塊になるよう調整
+			if""!s@@.1{s@@.0+=w@@+"\n\nに\n\n"+s@@.1:if""!s@@.2{s@@.0+="\nを"+z@@+"、\n------\n\n"}} ;
+			if""!s@@.2{s@@.0+=dir_cur+"\n\nに\n\n"+s@@.2}                                            ;
+			dialog s@@.0+"\nを"+z@@+"します。",2,y@@
 			if stat=6{
-				s@_@="":x@_@=dir_cur
-				if""=b@_@{netinit} ;hspinetの初期化
-				foreach a@_@
-					if"0"=a@_@.cnt{continue}                              ; a@_@.cnt.0 = "0" or "netmod_REPOS" or ""
-					if"1"=a@_@.cnt.3{chdir w@_@}                          ; a@_@.cnt.1 =        "net/"         or ""
-					a@_@.cnt.1+=a@_@.cnt.2                                ; a@_@.cnt.2 =        "ModName.hsp"  or "REPOS/FLD/ModName.hsp"
-					split a@_@.cnt.1,"/",b@_@ ;URL(ディレクトリ)構造分解  ; a@_@.cnt.3 = "1" or "2"
-					repeat stat-1 ;深い階層を作っていく
-						dirlist _@_@,b@_@.cnt,5 ;フォルダ存在確認
-						if stat=0{mkdir b@_@.cnt} ;フォルダが存在しないなら作る
-						chdir b@_@.cnt ;カレントディレクトリを1階層深くに移動
-					loop
-					a@_@.cnt=a@_@.cnt+a@_@.cnt.2
-					neturl"https://raw.githubusercontent.com/"+a@_@.cnt ;GitHubから
-					netrequest_get"" ;HSPモジュールをダウンロード
-					repeat
-						netexec n@_@ ;結果待ちのためのループ
-						if n@_@{break}
-						await 50
-					loop
-					netgetv b@_@ ;受信データを代入
-					if"40"=strmid(b@_@,0,2){
-						s@_@+=">"+a@_@.cnt+"\n"
-					}else{
-						notesel b@_@
-						notesave getpath(a@_@.cnt,8)
+				s@@="":x@@=dir_cur
+				; ================== [登録データ  ] == [リポジトリ込み指定   ] == [ネット上から切り出し ] ================== ;
+				; a@@.cnt.0 = "0" or "netmod_REPOS" or ""                      or ""                                         ;
+				; a@@.cnt.1 =        "net/"         or ""                      or "https?"                                   ;
+				; a@@.cnt.2 =        "ModName.hsp"  or "REPOS/FLD/ModName.hsp" or "/url/dir#/ModName.hsp"                    ;
+				; a@@.cnt.3 = "1" or "2"                                                                                     ;
+				; a@@.cnt.4 =                                              ""  or "正規表現文字列"                           ;
+				; a@@.cnt.5 =                                              ""  or "utf8"フラグ                               ;
+				; ========================================================================================================== ;
+				foreach a@@
+					if"0"=a@@.cnt{continue}                             
+					if"1"=a@@.cnt.3{chdir w@@}
+					a@@.cnt.3=a@@.cnt.1+":/" ;http(s):/ を作っておく
+					if$70747468!lpeek(a@@.cnt.1){ ;http(s)以外のときはGitHubの生データURL。minバージョンでは、良い塊になるよう書く場所を調整
+						a@@.cnt.3="https://raw.githubusercontent.com/"
 					}
-					chdir x@_@
+					a@@.cnt.1+=a@@.cnt.2                                
+					split a@@.cnt.1,"/",b@@ ;URL(ディレクトリ)構造分解  
+					repeat stat-1 ;深い階層を作っていく                   
+						dirlist i@@,b@@.cnt,5 ;フォルダ存在確認
+						if stat=0{mkdir b@@.cnt} ;フォルダが存在しないなら作る
+						chdir b@@.cnt ;カレントディレクトリを1階層深くに移動
+					loop
+					a@@.cnt+=a@@.cnt.2:j@@=a@@.cnt.5 ;minで短くなる用に
+					neturl replace(replace(a@@.cnt.3+a@@.cnt,"#.*$",""),"？","?") ;モジュール(またはネットのページを)ダウンロード
+					netrequest_get""
+					do
+						wait 5
+						netexec n@@
+					until n@@
+					netgetv b@@ ;受信データ
+					if n@@<0{ ;netexecからのエラー。404とかは拾えてない
+						s@@+="\n>"+a@@.cnt
+					}else{
+						if""!j@@{nkfcnv b@@,b@@,j@@,,stat} ;utf8フラグがあればsjisに変換する
+					logmes b@@
+						if""!a@@.cnt.4{b@@=submatch(b@@,a@@.cnt.4,,1)} ;ネットのページの一部からモジュールを切り出したいときの正規表現
+						m@@=getpath(a@@.cnt,8)
+						notesel b@@
+						notesave m@@ ;モジュールファイルの保存
+						if instr(j@@,0,"D")!-1{ ;どうしてもHTMLエンティティをデコードしたかったので-H隠しコマンドでpowershellを利用してHTMLデコード
+							m@@=dir_cur+"/"+m@@
+							exec "powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '"+m@@+"' -Raw;$d=[System.Web.HttpUtility]::HtmlDecode($s.Replace('<br>',\\\"`r`n\\\"));Set-Content -Path '"+m@@+"' $d;\"",2
+						}
+					}
+					chdir x@@ ;深い階層まで潜っていたのでカレントディレクトリに戻す
 				loop
-				if""!s@_@{dialog z@_@+"に失敗しました。\n\n"+s@_@,,y@_@:end}
-				dialog z@_@+"しました。\nHSPを再実行して下さい。",,y@_@:end ;ダウンロードしたらもう一度実行してもらう
+				if""!s@@{dialog z@@+"失敗\n"+s@@:end}
+				dialog z@@+"完了。\n再実行して下さい":end ;ダウンロードしたらもう一度実行してもらう
 			}
 		}
-		sdim a@_@ ;大きめ(?)の変数を初期化
+		sdim a@@ ;大きめ(?)の変数を初期化
 	}
 #else
 ;実行ファイル作成時はただの #include になる
-#define netinclude(%1,%2=_@_@) include %1
+#define netinclude(%1,%2=0,%3=0,%4=0) include %1
 #endif
 ;↑ ここをminバージョン化
 #ifdef _debug
 #module mod_netinclude
-#define NETMOD_PHPFILE "https://main-timetag.ssl-lolipop.jp/HSP3NetModules/netmod.php"
+#define NETMOD_PHPFILE "https://timetag.main.jp/HSP3NetModules/netmod.php?req=data"
 
 #deffunc netinclude_GetData
 	netinit@ ;hspinetの初期化
@@ -231,9 +254,11 @@ Win
 インターネットを使用してGitHubからモジュールをダウンロード
 
 %prm
-"module_name"/,p1
+"module_name"/,p1,p2,p3
 "module_name"/ : "モジュール名文字列"/
 p1(省略可) : currentキーワード
+p2(省略可) : ネットページ抽出用 "正規表現文字列"
+p3(省略可) : NKF変換/HTMLデコード オプション
 
 %inst
 p1で指定したモジュールがcommonフォルダに存在しない場合、GitHubからダウンロードします。
@@ -254,6 +279,18 @@ HSP3NetModulesデータベースに何が登録されているかは netinclude_GetData で取得でき
 
 p1に『current』と記述するとcommonフォルダでなくカレントフォルダにモジュールをダウンロードします。
 
+また、"モジュール名文字列"にネットのページを指定することができて、p2に"正規表現文字列"を指定することでページの一部を切り出してファイルとして保存、そのまま利用することが出来ます。
+（「?」はファイル名に使えないので大文字の「？」に置き換えてください。）
+
+【 例 】
+#netinclude "https/suwa.pupu.jp/HSP/modules/mod_HighDpi_kakkokari.hsp"/, current
+
+#netinclude "http/hsp.tv/play/pforum.php？mode=pastwch&num=18983#/sample_PreventMultiple.hsp"/, current, "<pre>(?![\s\S]*<pre[\s\S]*?WM_USER_DUPEXEC[\s\S]*?</pre>)([\s\S]*?WM_USER_DUPEXEC[\s\S]*?)</pre>", "EsD"
+
+p3オプションは nkfcnv のオプション値と同じものです。文字コードの指定が必要な場合に使用してください。
+隠しオプションとして "D" を指定することができHTMLエンティティ(#quot;等)の展開と<br>の改行化を行えます。
+
+
 ※ 注意点
 html{
 <ul>
@@ -267,8 +304,8 @@ html{
 
 #netinclude "net/ObjPosMod.hsp"/
 
-//【下記は裏技】#netinclude後に、この2行があれば複数行コメントが使えるようになります（「* /」はコメントアウト末尾の形に直してください）
-#undef netinclude /* * /
+//【下記は裏技】#netinclude後に、この2行があれば複数行コメントが使えるようになります（「* /」の真ん中の空白は消してコメントアウト末尾の形に直してください）
+#undef netinclude /*_* /
 #ifndef netinclude
 
 %href
