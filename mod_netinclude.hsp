@@ -5,7 +5,7 @@
 %dll ; モジュール名 :
 mod_netinclude
 %ver ; バージョン :
-3.0
+3.1
 %date ; 更新日 :
 2023/5/31
 %author ; 著作者 :
@@ -24,7 +24,7 @@ MIZUSHIKI
 	if strsize>0{ ;なるべく文字数を削減したい
 		a@@="":b@@="0":w@@=dir_exe+"\\common\\":y@@="#net\include":i@@="(?:\\s*,\\s*\"(.*?)\")?" ;変数初期化と省略化 (y@@の\はmin版の時のmatches検索回避の為)
 		notesel a@@:noteload"hsptmp":noteunsel ;hsptmp読み込み
-		matches a@@,a@@,y@@+"\\s*\"((?:net/|https?)?)(.+?)\"\\s*/\\s*,?\\s*(\\w*)"+i@@+i@@ ;#netinclude部分を読み取り
+		matches a@@,a@@,y@@+"\\s*\"(net/|https?)?(.+?)\"\\s*/\\s*,?\\s*(\\w*)(\n)?\\s*;*/*"+i@@+i@@ ;#netinclude部分を読み取り
 		repeat stat
 			a@@.cnt="0" ;ダウンロードしないフラグを立てておく
 			x@@=w@@:if"current"=a@@.cnt.3{x@@=""}
@@ -48,7 +48,7 @@ MIZUSHIKI
 					if""+i@@!a@@.cnt.3{continue} ;currentとcommonの振り分け
 					if"net/"=a@@.cnt.1{ ;登録されているモジュールデータを扱う
 						if""=b@@{ ;登録データを取得
-							neturl"https://timetag.main.jp/HSP3NetModules/netmod.php?req=data"
+							neturl"https\://timetag.main.jp/HSP3NetModules/netmod.php?req=data" ;\は掲示板に書いた文字列がリンクにされるのを防ぐ為
 							netrequest_get""
 							do
 								wait 5
@@ -71,35 +71,36 @@ MIZUSHIKI
 					}
 				loop
 			loop
-			if""=s@@.1+s@@.2{dialog"モジュールデータが見つかりませんでした",1,y@@:end}               ;minバージョンでは、この3行ifの順番は良い塊になるよう調整
 			if""!s@@.1{s@@.0+=w@@+"\n\nに\n\n"+s@@.1:if""!s@@.2{s@@.0+="\nを"+z@@+"、\n------\n\n"}} ;
+			if""=s@@.1+s@@.2{dialog"モジュールデータが見つかりませんでした",1,y@@:end}               ;minのため位置を間に
 			if""!s@@.2{s@@.0+=dir_cur+"\n\nに\n\n"+s@@.2}                                            ;
 			dialog s@@.0+"\nを"+z@@+"します。",2,y@@
 			if stat=6{
 				s@@="":x@@=dir_cur
-				; ================== [登録データ  ] == [リポジトリ込み指定   ] == [ネット上から切り出し ] ================== ;
+				; ==この時点で====== [登録データ  ] == [リポジトリ込み指定   ] == [ネット上から切り出し ] ================== ;
 				; a@@.cnt.0 = "0" or "netmod_REPOS" or ""                      or ""                                         ;
 				; a@@.cnt.1 =        "net/"         or ""                      or "https?"                                   ;
 				; a@@.cnt.2 =        "ModName.hsp"  or "REPOS/FLD/ModName.hsp" or "/url/dir#/ModName.hsp"                    ;
-				; a@@.cnt.3 = "1" or "2"                                                                                     ;
-				; a@@.cnt.4 =                                              ""  or "正規表現文字列"                           ;
-				; a@@.cnt.5 =                                              ""  or "utf8"フラグ                               ;
+				; a@@.cnt.3 = "1" or "2" (currentキーワードの有無)                                                           ;
+				; a@@.cnt.4 = (使わない)                                                                                     ;
+				; a@@.cnt.5 =                                              ""  or "正規表現文字列"                           ;
+				; a@@.cnt.6 =                                              ""  or NKF変換/HTMLデコード オプション            ;
 				; ========================================================================================================== ;
 				foreach a@@
 					if"0"=a@@.cnt{continue}                             
 					if"1"=a@@.cnt.3{chdir w@@}
-					a@@.cnt.3=a@@.cnt.1+":/" ;http(s):/ を作っておく
-					if$70747468!lpeek(a@@.cnt.1){ ;http(s)以外のときはGitHubの生データURL。minバージョンでは、良い塊になるよう書く場所を調整
-						a@@.cnt.3="https://raw.githubusercontent.com/"
-					}
-					a@@.cnt.1+=a@@.cnt.2                                
+					a@@.cnt.3=a@@.cnt.1+":/" ;http(s):/ を作っておく。minバージョンのため書く場所が調整されている
+					a@@.cnt.1+=a@@.cnt.2
 					split a@@.cnt.1,"/",b@@ ;URL(ディレクトリ)構造分解  
 					repeat stat-1 ;深い階層を作っていく                   
 						dirlist i@@,b@@.cnt,5 ;フォルダ存在確認
 						if stat=0{mkdir b@@.cnt} ;フォルダが存在しないなら作る
 						chdir b@@.cnt ;カレントディレクトリを1階層深くに移動
 					loop
-					a@@.cnt+=a@@.cnt.2:j@@=a@@.cnt.5 ;minで短くなる用に
+					a@@.cnt+=a@@.cnt.2:j@@=a@@.cnt.6 ;j@@はminで短くなる用に
+					if$70747468!lpeek(a@@.cnt.1){ ;http(s)以外のときはGitHubの生データURL。
+						a@@.cnt.3="https\://raw.githubusercontent.com/" ;\は掲示板に書いた文字列がリンクにされるのを防ぐ為
+					}                         
 					neturl replace(replace(a@@.cnt.3+a@@.cnt,"#.*$",""),"？","?") ;モジュール(またはネットのページを)ダウンロード
 					netrequest_get""
 					do
@@ -110,12 +111,12 @@ MIZUSHIKI
 					if n@@<0{ ;netexecからのエラー。404とかは拾えてない
 						s@@+="\n>"+a@@.cnt
 					}else{
-						if""!j@@{nkfcnv b@@,b@@,j@@,,stat} ;utf8フラグがあればsjisに変換する
-						if""!a@@.cnt.4{b@@=submatch(b@@,a@@.cnt.4,,1)} ;ネットのページの一部からモジュールを切り出したいときの正規表現
+						if""!j@@{nkfcnv b@@,b@@,j@@,,stat} ;NKF変換/HTMLデコード オプションがあれば変換する
+						if""!a@@.cnt.5{b@@=submatch(b@@,a@@.cnt.5,,1)} ;ネットのページの一部からモジュールを切り出したいときの正規表現
 						m@@=getpath(a@@.cnt,8)
 						notesel b@@
 						notesave m@@ ;モジュールファイルの保存
-						if instr(j@@,0,"D")!-1{ ;どうしてもHTMLエンティティをデコードしたかったので D 隠しコマンドでpowershellを利用してHTMLデコード。ついでに<br>も改行化
+						if instr(j@@,0,"D")!-1{ ;どうしてもHTMLエンティティをデコードしたかったのでD隠しコマンドでpowershellを利用してHTMLデコード。ついでに<br>も改行化
 							m@@=dir_cur+"/"+m@@
 							exec "powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '"+m@@+"' -Raw;$d=[System.Web.HttpUtility]::HtmlDecode($s.Replace('<br>',\\\"`r`n\\\"));Set-Content -Path '"+m@@+"' $d;\"",2
 						}
@@ -279,16 +280,32 @@ HSP3NetModulesデータベースに何が登録されているかは netinclude_GetData で取得でき
 p1に『current』と記述するとcommonフォルダでなくカレントフォルダにモジュールをダウンロードします。
 
 また、"モジュール名文字列"にネットのページを指定することができて、p2に"正規表現文字列"を指定することでページの一部を切り出してファイルとして保存、そのまま利用することが出来ます。
-（「?」はファイル名に使えないので大文字の「？」に置き換えてください。）
+・「?」はファイル名に使えないので大文字の「？」に置き換えてください。
+・URL末尾に「#/モジュールファイル名」と書くのがオススメです。
 
 【 例 】
+html{
+<pre style="background-color: #F0F0F0;">
 #netinclude "https/suwa.pupu.jp/HSP/modules/mod_HighDpi_kakkokari.hsp"/, current
+</pre>
+}html
 
-#netinclude "http/hsp.tv/play/pforum.php？mode=pastwch&num=18983#/sample_PreventMultiple.hsp"/, current, "<pre>(?![\s\S]*<pre[\s\S]*?WM_USER_DUPEXEC[\s\S]*?</pre>)([\s\S]*?WM_USER_DUPEXEC[\s\S]*?)</pre>", "EsD"
+html{
+<pre style="background-color: #F0F0F0;">
+#netinclude "http/hsp.tv/play/pforum.php？mode=pastwch&num=18983#/sample_PreventMultiple.hsp"/, current, "&lt;pre(?![\s\S]*&lt;pre[\s\S]*?WM_USER_DUPEXEC[\s\S]*?&lt;/pre)>([\s\S]*?WM_USER_DUPEXEC[\s\S]*?)&lt;/pre", "EsD"
+</pre>
+}html
 
 p3オプションは nkfcnv のオプション値と同じものです。文字コードの指定が必要な場合に使用してください。
 隠しオプションとして "D" を指定することができHTMLエンティティ(#quot;等)の展開と<br>の改行化を行えます。
 
+p2正規表現のカンマ前にのみ改行を入れられます。文頭に「;」か「//」を入れてコメントアウトしてください。コメントになっていても netinclude はこの行を認識/処理しています。
+html{
+<pre style="background-color: #F0F0F0;">
+#netinclude "http/hsp.tv/play/pforum.php？mode=pastwch&num=18983#/sample_PreventMultiple.hsp"/, current
+&#059; , "&lt;pre(?![\s\S]*&lt;pre[\s\S]*?WM_USER_DUPEXEC[\s\S]*?&lt;/pre)>([\s\S]*?WM_USER_DUPEXEC[\s\S]*?)&lt;/pre", "EsD"
+</pre>
+}html
 
 ※ 注意点
 html{
