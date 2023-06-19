@@ -1,5 +1,5 @@
 //
-//  plus_wv2ccall.hsp - ver. 1.0    by MIZUSHIKI
+//  plus_wv2ccall.hsp - ver. 1.0.1    by MIZUSHIKI
 //
 //  ・下記 mod_wv2s.hsp の ComCall を一部使いやすくする「WV2CCall」を追加するモジュール
 //    https://blog.goo.ne.jp/hiro239415/e/279927d2a52e6390a2abc17ce166795f
@@ -336,15 +336,19 @@ wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_Language" : i++
 wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "get_TargetCompatibleBrowserVersion" : i++
 wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_TargetCompatibleBrowserVersion" : i++
 wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "get_AllowSingleSignOnUsingOSPrimaryAccount" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_AllowSingleSignOnUsingOSPrimaryAccount" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "get_ExclusiveUserDataFolderAccess" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_ExclusiveUserDataFolderAccess" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "get_IsCustomCrashReportingEnabled" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_IsCustomCrashReportingEnabled" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "GetCustomSchemeRegistrations" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "SetCustomSchemeRegistrations" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "get_EnableTrackingPrevention" : i++
-wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_EnableTrackingPrevention" : i=0
+wv2f_2fde08a8_1e9a_4766_8c05_95a9ceb9d1c5(i) = "put_AllowSingleSignOnUsingOSPrimaryAccount" : i=0
+// ICoreWebView2EnvironmentOptions2
+wv2f_FF85C98A_1BA7_4A6B_90C8_2B752C89E9E2(i) = "get_ExclusiveUserDataFolderAccess" : i++
+wv2f_FF85C98A_1BA7_4A6B_90C8_2B752C89E9E2(i) = "put_ExclusiveUserDataFolderAccess" : i=0
+// ICoreWebView2EnvironmentOptions3
+wv2f_4A5C436E_A9E3_4A2E_89C3_910D3513F5CC(i) = "get_IsCustomCrashReportingEnabled" : i++
+wv2f_4A5C436E_A9E3_4A2E_89C3_910D3513F5CC(i) = "put_IsCustomCrashReportingEnabled" : i=0
+// ICoreWebView2EnvironmentOptions4
+wv2f_ac52d13f_0d38_475a_9dca_876580d6793e(i) = "GetCustomSchemeRegistrations" : i++
+wv2f_ac52d13f_0d38_475a_9dca_876580d6793e(i) = "SetCustomSchemeRegistrations" : i=0
+// ICoreWebView2EnvironmentOptions5
+wv2f_0AE35D64_C47F_4464_814E_259C345D1501(i) = "get_EnableTrackingPrevention" : i++
+wv2f_0AE35D64_C47F_4464_814E_259C345D1501(i) = "put_EnableTrackingPrevention" : i=0
 // ICoreWebView2EstimatedEndTimeChangedEventHandler
 wv2f_28f0d425_93fe_4e63_9f8d_2aeec6d3ba1e(i) = "Invoke" : i=0
 // ICoreWebView2ExecuteScriptCompletedHandler
@@ -1344,7 +1348,12 @@ https://blog.goo.ne.jp/hiro239415/e/aea2df33cd810488bbe7ca48d84656d1
 				name = re(0,2)
 				if iid == "IUnknown" : continue
 				if match( iid, mae_iid + "_?\\d+$" ) != "" {
-					iid = mae_iid
+					foreach aIFace1
+						if aIFace1(cnt) == iid {
+							if aIFace2(cnt) != "IUnknown" : iid = mae_iid
+							break
+						}
+					loop
 				}
 				foreach aIFace1
 					if aIFace1(cnt) == iid {
