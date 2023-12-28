@@ -1,35 +1,60 @@
 //
-//  plus_wv2ccall.hsp - ver. 1.1    by MIZUSHIKI
+//  plus_wv2ccall.hsp - ver. 1.2    by MIZUSHIKI
 //
 //  ・下記 mod_wv2s.hsp の ComCall を一部使いやすくする「WV2CCall」を追加するモジュール
 //    https://blog.goo.ne.jp/hiro239415/e/279927d2a52e6390a2abc17ce166795f
 //      ・mod_wv2s製作者： Hiro 様
 //      ・HomePage： HSPメモ帳
-//  ・ComCallで直接コマンド指定するより処理速度が遅くなることがあるのでコールバック内など速度を必要とする箇所での使用に注意。(WV2CCallコマンドの説明を参照ください)
+//  ・ComCallで直接コマンド値を指定するより処理速度が遅くなることがあるのでコールバック内など速度を必要とする箇所での使用に注意。(WV2CCallコマンドの説明を参照ください)
 //
 //
 //  WV2CCall p1, p2, p3, p4, p5, p6 ... p10
 //    ・ComCallを少し使いやすくします。
 //  p1   : WebView2インターフェイスポインタ(WV2Ctrl等で取得したポインタ)
 //  p2   : WebView2インターフェイスメンバー定数 または "WebView2インターフェイスメンバー文字列" 
-//  p3～ : 関数に渡す引数 (int, double 指定可)
+//  p3～ : 関数に渡す引数 (int, double, str[->内部でLPCWSTRに変換], WV2GetLPWSTR(変数)[->変数にLPWSTR→str変換後文字列が代入] 指定可)
+//         ※ WebView2からLPWSTR型のUnicode文字列ポインタが引数に渡される場合、WV2GetLPWSTR(変数)を引数に指定するとShift-JISに変換された文字列を変数に受け取ることが出来ます。
+//           また、通常LPWSTR型のポインタを受け取った場合CoTaskMemFreeを使用してポインタ先のメモリを解放する必要がありますが、WV2GetLPWSTR()を指定していればWV2CCall内部でメモリ開放も合わせて行います。
+//         例) 
+//           // 本来
+//           WV2CCall web, "get_DocumentTitle", varptr(pWtitle)
+//           dupptr wTitle, pWtitle, wcslen(pWtitle)*2+2, 2
+//           title ""+cnvwtos(wTitle)
+//           CoTaskMemFree pWtitle
+//             ↓
+//           // WV2GetLPWSTR()使用
+//           WV2CCall web, "get_DocumentTitle", WV2GetLPWSTR(sTitle)
+//           title ""+sTitle
 //    - - - - - - - - - -
 //    p2に"WebView2インターフェイスメンバー文字列"を指定した場合はp1が何のインターフェイスか調査する処理が入るため速度が遅くなります。
 //    コールバック内ではp2に定数を指定することを強く推奨します。
-//    文字列を指定した場合はHSP3のDebugウィンドウのログに WV2CCall_p2 = 25/*"get_CoreWebView2"*/ line:100 (.\Sample.hsp) のような文字列が残ります。
+//    文字列を指定した場合はHSP3のDebugウィンドウのログに WV2CCall_p2 = 25/*"get_CoreWebView2"*/ line:100 (.\Sample.hsp) のような文字列を残します。
 //    ここで示されてる数値をp2に指定することでComCallとそれほど遜色のない速度で処理させることができます。
+//    ----------
+//    スクリプト内全てのWV2CCallのp2を数値で指定した場合に限り、以下の処置を行うことでこのモジュールの初期化処理を省くことが出来ます。
+//    #define NO_INIT@plus_wv2ccall を、
+//    #include "plus_wv2ccall.hsp" インクルード行の前に置く。
+//    ----------
 //
 //  SetMemMax_WV2CCall p1
-//    ・WV2CCallは直近で使用したインターフェイスポインタを記憶して速度の向上を図っています。
+//    ・WV2CCallは直近で使用したインターフェイスポインタを記憶してインターフェイス推測調査の速度向上を図っています。
 //  p1 : 記憶しておく個数。初期値256。0にすると記憶しなくなります。
+//    - - - - - - - - - -
+//    #define NO_INIT@plus_wv2ccall している場合は不要になります。
 //
+
+#ifndef WV2CCall
 
 #module plus_wv2ccall
 #uselib "OLE32.DLL"
 #func IIDFromString "IIDFromString" sptr,sptr
+#func CoTaskMemFree "CoTaskMemFree" sptr
+#uselib "msvcrt"
+#cfunc wcslen "wcslen" int
+
+#ifndef NO_INIT@plus_wv2ccall
 
 #deffunc init@plus_wv2ccall
-	i=0
 // ICoreWebView2AcceleratorKeyPressedEventArgs
 wv2f_9f760f8a_fb79_42be_9990_7b56900fa9c7(  0) = "get_KeyEventKind"
 wv2f_9f760f8a_fb79_42be_9990_7b56900fa9c7(  1) = "get_VirtualKey"
@@ -1075,7 +1100,12 @@ sdim psW_0f36fd87_4f69_4415_98da_888f89fb9a33,78 : dim piid_0f36fd87_4f69_4415_9
 	PrevIndex(n_n) = p1
 	return
 
+#endif  // #ifndef NO_INIT@plus_wv2ccall
+
 #deffunc SetMemMax_WV2CCall int p1
+
+#ifndef NO_INIT@plus_wv2ccall
+
 	MEM_MAX = p1
 	// 初期化 (p1=0のとき負数に注意)
 	nowIndex = 0
@@ -1091,16 +1121,26 @@ sdim psW_0f36fd87_4f69_4415_98da_888f89fb9a33,78 : dim piid_0f36fd87_4f69_4415_9
 	loop
 	PrevIndex(0)=MEM_MAX-1 : NextIndex(MEM_MAX-1)=0
 	nowIndex = MEM_MAX-1
+
+#endif  // #ifndef NO_INIT@plus_wv2ccall
+
 	return
 
+
+#define global ctype WV2GetLPWSTR(%1) %1:flg@plus_wv2ccall.c@plus_wv2ccall=1
+
 #ifdef _debug
-#define global WV2CCall(%1,%2,%3="",%4="",%5="",%6="",%7="",%8="",%9="",%10="") dp2@plus_wv2ccall=%2:dp3@plus_wv2ccall=%3:dp4@plus_wv2ccall=%4:dp5@plus_wv2ccall=%5:dp6@plus_wv2ccall=%6:dp7@plus_wv2ccall=%7:dp8@plus_wv2ccall=%8:dp9@plus_wv2ccall=%9:dp10@plus_wv2ccall=%10: WV2CCall@plus_wv2ccall %1 : if i@plus_wv2ccall > -1 { logmes "WV2CCall_p2 = "+(i@plus_wv2ccall+3)+"/*\""+dp2@plus_wv2ccall+"\"*/ line:"+__line__+" ("+__file__+")" }
+#define global WV2CCall(%1,%2,%3=lb@plus_wv2ccall,%4=lb@plus_wv2ccall,%5=lb@plus_wv2ccall,%6=lb@plus_wv2ccall,%7=lb@plus_wv2ccall,%8=lb@plus_wv2ccall,%9=lb@plus_wv2ccall,%10=lb@plus_wv2ccall) dp2@plus_wv2ccall=%2:c@plus_wv2ccall=0:dp3@plus_wv2ccall=%3:c@plus_wv2ccall=1:dp4@plus_wv2ccall=%4:c@plus_wv2ccall=2:dp5@plus_wv2ccall=%5:c@plus_wv2ccall=3:dp6@plus_wv2ccall=%6:c@plus_wv2ccall=4:dp7@plus_wv2ccall=%7:c@plus_wv2ccall=5:dp8@plus_wv2ccall=%8:c@plus_wv2ccall=6:dp9@plus_wv2ccall=%9:c@plus_wv2ccall=7:dp10@plus_wv2ccall=%10: WV2CCall@plus_wv2ccall %1 :if flg@plus_wv2ccall.0{SetLPWSTR3@plus_wv2ccall %3}:if flg@plus_wv2ccall.1{SetLPWSTR4@plus_wv2ccall %4}:if flg@plus_wv2ccall.2{SetLPWSTR5@plus_wv2ccall %5}:if flg@plus_wv2ccall.3{SetLPWSTR6@plus_wv2ccall %6}:if flg@plus_wv2ccall.4{SetLPWSTR7@plus_wv2ccall %7}:if flg@plus_wv2ccall.5{SetLPWSTR8@plus_wv2ccall %8}:if flg@plus_wv2ccall.6{SetLPWSTR9@plus_wv2ccall %9}:if flg@plus_wv2ccall.7{SetLPWSTR10@plus_wv2ccall %10} : if i@plus_wv2ccall > -1 { logmes "WV2CCall_p2 = "+(i@plus_wv2ccall+3)+"/*\""+dp2@plus_wv2ccall+"\"*/ line:"+__line__+" ("+__file__+")" }
 #else
-#define global WV2CCall(%1,%2,%3="",%4="",%5="",%6="",%7="",%8="",%9="",%10="") dp2@plus_wv2ccall=%2:dp3@plus_wv2ccall=%3:dp4@plus_wv2ccall=%4:dp5@plus_wv2ccall=%5:dp6@plus_wv2ccall=%6:dp7@plus_wv2ccall=%7:dp8@plus_wv2ccall=%8:dp9@plus_wv2ccall=%9:dp10@plus_wv2ccall=%10: WV2CCall@plus_wv2ccall %1
+#define global WV2CCall(%1,%2,%3=lb@plus_wv2ccall,%4=lb@plus_wv2ccall,%5=lb@plus_wv2ccall,%6=lb@plus_wv2ccall,%7=lb@plus_wv2ccall,%8=lb@plus_wv2ccall,%9=lb@plus_wv2ccall,%10=lb@plus_wv2ccall) dp2@plus_wv2ccall=%2:c@plus_wv2ccall=0:dp3@plus_wv2ccall=%3:c@plus_wv2ccall=1:dp4@plus_wv2ccall=%4:c@plus_wv2ccall=2:dp5@plus_wv2ccall=%5:c@plus_wv2ccall=3:dp6@plus_wv2ccall=%6:c@plus_wv2ccall=4:dp7@plus_wv2ccall=%7:c@plus_wv2ccall=5:dp8@plus_wv2ccall=%8:c@plus_wv2ccall=6:dp9@plus_wv2ccall=%9:c@plus_wv2ccall=7:dp10@plus_wv2ccall=%10: WV2CCall@plus_wv2ccall %1 :if flg@plus_wv2ccall.0{SetLPWSTR3@plus_wv2ccall %3}:if flg@plus_wv2ccall.1{SetLPWSTR4@plus_wv2ccall %4}:if flg@plus_wv2ccall.2{SetLPWSTR5@plus_wv2ccall %5}:if flg@plus_wv2ccall.3{SetLPWSTR6@plus_wv2ccall %6}:if flg@plus_wv2ccall.4{SetLPWSTR7@plus_wv2ccall %7}:if flg@plus_wv2ccall.5{SetLPWSTR8@plus_wv2ccall %8}:if flg@plus_wv2ccall.6{SetLPWSTR9@plus_wv2ccall %9}:if flg@plus_wv2ccall.7{SetLPWSTR10@plus_wv2ccall %10}
 #endif
 #deffunc WV2CCall@plus_wv2ccall int p1
 // 第2引数が文字列のとき
 if vartype(dp2) == 2 {
+	i = -1 : st = 0
+
+#ifndef NO_INIT@plus_wv2ccall
+	
 	selId = -1
 	selIndex = nowIndex
 	// 直近で使用したP1が保存されていたら、前回判明したIIDを選択する
@@ -1108,7 +1148,6 @@ if vartype(dp2) == 2 {
 		if p1 == memP1(selIndex) : selId = memId(selIndex) : memUsed(selIndex)++ : break
 		selIndex = PrevIndex(selIndex)
 	loop
-	i = -1 : st = 0
 	do
 on selId goto *ID0,*ID1,*ID2,*ID3,*ID4,*ID5,*ID6,*ID7,*ID8,*ID9,*ID10,*ID11,*ID12,*ID13,*ID14,*ID15,*ID16,*ID17,*ID18,*ID19,*ID20,*ID21,*ID22,*ID23,*ID24,*ID25,*ID26,*ID27,*ID28,*ID29,*ID30,*ID31,*ID32,*ID33,*ID34,*ID35,*ID36,*ID37,*ID38,*ID39,*ID40,*ID41,*ID42,*ID43,*ID44,*ID45,*ID46,*ID47,*ID48,*ID49,*ID50,*ID51,*ID52,*ID53,*ID54,*ID55,*ID56,*ID57,*ID58,*ID59,*ID60,*ID61,*ID62,*ID63,*ID64,*ID65,*ID66,*ID67,*ID68,*ID69,*ID70,*ID71,*ID72,*ID73,*ID74,*ID75,*ID76,*ID77,*ID78,*ID79,*ID80,*ID81,*ID82,*ID83,*ID84,*ID85,*ID86,*ID87,*ID88,*ID89,*ID90,*ID91,*ID92,*ID93,*ID94,*ID95,*ID96,*ID97,*ID98,*ID99,*ID100,*ID101,*ID102,*ID103,*ID104,*ID105,*ID106,*ID107,*ID108,*ID109,*ID110,*ID111,*ID112,*ID113,*ID114,*ID115,*ID116,*ID117,*ID118,*ID119,*ID120,*ID121,*ID122,*ID123,*ID124,*ID125,*ID126,*ID127,*ID128,*ID129,*ID130,*ID131,*ID132,*ID133,*ID134,*ID135,*ID136,*ID137
 ComCall p1,0,prm_9f760f8a_fb79_42be_9990_7b56900fa9c7,2 : if st { ComDel st : *ID0 : foreach wv2f_9f760f8a_fb79_42be_9990_7b56900fa9c7:if(wv2f_9f760f8a_fb79_42be_9990_7b56900fa9c7(cnt)==dp2){ i=cnt:id=0:break }:loop : _break }  ; ICoreWebView2AcceleratorKeyPressedEventArgs
@@ -1250,7 +1289,12 @@ ComCall p1,0,prm_A2508329_7DA8_49D7_8C05_FA125E4AEE8D,2 : if st { ComDel st : *I
 ComCall p1,0,prm_f2c19559_6bc1_4583_a757_90021be9afec,2 : if st { ComDel st : *ID136 : foreach wv2f_f2c19559_6bc1_4583_a757_90021be9afec:if(wv2f_f2c19559_6bc1_4583_a757_90021be9afec(cnt)==dp2){ i=cnt:id=136:break }:loop : _break }  ; ICoreWebView2File
 ComCall p1,0,prm_0f36fd87_4f69_4415_98da_888f89fb9a33,2 : if st { ComDel st : *ID137 : foreach wv2f_0f36fd87_4f69_4415_98da_888f89fb9a33:if(wv2f_0f36fd87_4f69_4415_98da_888f89fb9a33(cnt)==dp2){ i=cnt:id=137:break }:loop : _break }  ; ICoreWebView2ObjectCollectionView
 	until
-	if i == -1 :return 0x80004002  ; E_NOINTERFACE
+
+#endif  // #ifndef NO_INIT@plus_wv2ccall
+
+	if i == -1 :dim flg, 9 : return 0x80004002  ; E_NOINTERFACE
+
+#ifndef NO_INIT@plus_wv2ccall
 
 	if selId != -1 {  ; memにあるP1でComCall(QueryInterface)成功
 		// 双方向循環リスト : 参照元データを末尾に移動させて直近で使用したもの(順番)にする。memCountは増やさない
@@ -1266,6 +1310,8 @@ ComCall p1,0,prm_0f36fd87_4f69_4415_98da_888f89fb9a33,2 : if st { ComDel st : *I
 		memUsed(nowIndex) = 0
 		if memCount < MEM_MAX : memCount++
 	}
+
+#endif  // #ifndef NO_INIT@plus_wv2ccall
 	
 // 第2引数が数値のとき
 } else {
@@ -1274,56 +1320,171 @@ ComCall p1,0,prm_0f36fd87_4f69_4415_98da_888f89fb9a33,2 : if st { ComDel st : *I
 	
 	num = 0
 	repeat 1
+		if flg.0 : retLp3 = 0 : dp3=varptr(retLp3)
 		switch vartype(dp3)
 		case 4 : prm(num)=dp3 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp3,0),lpeek(dp3,4) : num+=2 : swbreak
+		case 2 : sdim dp3W,strlen(dp3+1)*2 : cnvstow dp3W,dp3 : prm(num)=varptr(dp3W) : num++ : swbreak
 		default : break
 		swend
+		if flg.1 : retLp4 = 0 : dp4=varptr(retLp4)
 		switch vartype(dp4)
 		case 4 : prm(num)=dp4 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp4,0),lpeek(dp4,4) : num+=2 : swbreak
+		case 2 : sdim dp4W,strlen(dp4+1)*2 : cnvstow dp4W,dp4 : prm(num)=varptr(dp4W) : num++ : swbreak
 		default : break
 		swend
+		if flg.2 : retLp5 = 0 : dp5=varptr(retLp5)
 		switch vartype(dp5)
 		case 4 : prm(num)=dp5 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp5,0),lpeek(dp5,4) : num+=2 : swbreak
+		case 2 : sdim dp5W,strlen(dp5+1)*2 : cnvstow dp5W,dp5 : prm(num)=varptr(dp5W) : num++ : swbreak
 		default : break
 		swend
+		if flg.3 : retLp6 = 0 : dp6=varptr(retLp6)
 		switch vartype(dp6)
 		case 4 : prm(num)=dp6 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp6,0),lpeek(dp6,4) : num+=2 : swbreak
+		case 2 : sdim dp6W,strlen(dp6+1)*2 : cnvstow dp6W,dp6 : prm(num)=varptr(dp6W) : num++ : swbreak
 		default : break
 		swend
+		if flg.4 : retLp7 = 0 : dp7=varptr(retLp7)
 		switch vartype(dp7)
 		case 4 : prm(num)=dp7 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp7,0),lpeek(dp7,4) : num+=2 : swbreak
+		case 2 : sdim dp7W,strlen(dp7+1)*2 : cnvstow dp7W,dp7 : prm(num)=varptr(dp7W) : num++ : swbreak
 		default : break
 		swend
+		if flg.5 : retLp8 = 0 : dp8=varptr(retLp8)
 		switch vartype(dp8)
 		case 4 : prm(num)=dp8 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp8,0),lpeek(dp8,4) : num+=2 : swbreak
+		case 2 : sdim dp8W,strlen(dp8+1)*2 : cnvstow dp8W,dp8 : prm(num)=varptr(dp8W) : num++ : swbreak
 		default : break
 		swend
+		if flg.6 : retLp9 = 0 : dp9=varptr(retLp9)
 		switch vartype(dp9)
 		case 4 : prm(num)=dp9 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp9,0),lpeek(dp9,4) : num+=2 : swbreak
+		case 2 : sdim dp9W,strlen(dp9+1)*2 : cnvstow dp9W,dp9 : prm(num)=varptr(dp9W) : num++ : swbreak
 		default : break
 		swend
+		if flg.7 : retLp10 = 0 : dp10=varptr(retLp10)
 		switch vartype(dp10)
 		case 4 : prm(num)=dp10 : num++ : swbreak
 		case 3 : prm(num)=lpeek(dp10,0),lpeek(dp10,4) : num+=2 : swbreak
+		case 2 : sdim dp10W,strlen(dp10+1)*2 : cnvstow dp10W,dp10 : prm(num)=varptr(dp10W) : num++ : swbreak
 		default : break
 		swend
 	loop
 	ComCall p1, 3+i, prm, num
-
+	stat_ = stat
+	// WV2GetLPWSTR()をセットしている引数へのLPWSTR->str文字列渡しはこの関数から抜けた後のSetLPWSTRxで行う。
+	
 #ifdef _debug
+#ifndef NO_INIT@plus_wv2ccall
+
 	if prm1_OutputSohokoJKList {
 		_OutputSohokoJKList prm1_OutputSohokoJKList, prm2_OutputSohokoJKList
 	}
+
+#endif  // #ifndef NO_INIT@plus_wv2ccall
+
 	if vartype(dp2) != 2 : i = -1
-#endif
-	return
+
+#endif  // _debug
+
+	return stat_
+
+// WV2GetLPWSTR(p1)へのセット関数
+#deffunc SetLPWSTR3@plus_wv2ccall var p1
+	if retLp3 != 0 {
+		dupptr retWstr, retLp3, wcslen(retLp3)*2+2, 2
+		sdim p1, wcslen(retLp3)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp3
+	}else {
+		p1 = ""
+	}
+	flg.0 = 0 : c = 8  ; 出た直後 flg@plus_wv2ccall.c@plus_wv2ccall=1 とされてしまうため使用範囲外に
+	return stat_
+#deffunc SetLPWSTR4@plus_wv2ccall var p1
+	if retLp4 != 0 {
+		dupptr retWstr, retLp4, wcslen(retLp4)*2+2, 2
+		sdim p1, wcslen(retLp4)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp4
+	}else {
+		p1 = ""
+	}
+	flg.1 = 0 : c = 8
+	return stat_
+#deffunc SetLPWSTR5@plus_wv2ccall var p1
+	if retLp5 != 0 {
+		dupptr retWstr, retLp5, wcslen(retLp5)*2+2, 2
+		sdim p1, wcslen(retLp5)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp5
+	}else {
+		p1 = ""
+	}
+	flg.2 = 0 : c = 8
+	return stat_
+#deffunc SetLPWSTR6@plus_wv2ccall var p1
+	if retLp6 != 0 {
+		dupptr retWstr, retLp6, wcslen(retLp6)*2+2, 2
+		sdim p1, wcslen(retLp6)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp6
+	}else {
+		p1 = ""
+	}
+	flg.3 = 0 : c = 8
+	return stat_
+#deffunc SetLPWSTR7@plus_wv2ccall var p1
+	if retLp7 != 0 {
+		dupptr retWstr, retLp7, wcslen(retLp7)*2+2, 2
+		sdim p1, wcslen(retLp7)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp7
+	}else {
+		p1 = ""
+	}
+	flg.4 = 0 : c = 8
+	return stat_
+#deffunc SetLPWSTR8@plus_wv2ccall var p1
+	if retLp8 != 0 {
+		dupptr retWstr, retLp8, wcslen(retLp8)*2+2, 2
+		sdim p1, wcslen(retLp8)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp8
+	}else {
+		p1 = ""
+	}
+	flg.5 = 0 : c = 8
+	return stat_
+#deffunc SetLPWSTR9@plus_wv2ccall var p1
+	if retLp9 != 0 {
+		dupptr retWstr, retLp9, wcslen(retLp9)*2+2, 2
+		sdim p1, wcslen(retLp9)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp9
+	}else {
+		p1 = ""
+	}
+	flg.6 = 0 : c = 8
+	return stat_
+#deffunc SetLPWSTR10@plus_wv2ccall var p1
+	if retLp10 != 0 {
+		dupptr retWstr, retLp10, wcslen(retLp10)*2+2, 2
+		sdim p1, wcslen(retLp10)+1
+		p1 = cnvwtos(retWstr)
+		CoTaskMemFree retLp10
+	}else {
+		p1 = ""
+	}
+	flg.7 = 0 : c = 8
+	return stat_
 
 //
 //  双方向循環リスト配列動作確認用コマンド [Debug時のみ動作]
@@ -1338,7 +1499,9 @@ ComCall p1,0,prm_0f36fd87_4f69_4415_98da_888f89fb9a33,2 : if st { ComDel st : *I
 #else
 #define global OutputSohokoJKList_WV2CCall(%1,%2=100) prm1_OutputSohokoJKList@plus_wv2ccall=%1:prm2_OutputSohokoJKList@plus_wv2ccall=%2
 #deffunc local _OutputSohokoJKList int p1, int p2
-	stat_=stat
+
+#ifndef NO_INIT@plus_wv2ccall
+
 	g_sel = ginfo_sel
 	if inited_OutputSohokoJKList = 0 {
 		screen p2, 1,1 : sysfont 17 : mes strf("%03d : %09d = %03d (%03d)[%03d-%03d]     ",0,0,0,0,0,0)
@@ -1359,10 +1522,23 @@ ComCall p1,0,prm_0f36fd87_4f69_4415_98da_888f89fb9a33,2 : if st { ComDel st : *I
 	loop
 	redraw 1
 	gsel g_sel
-	return stat_
-#endif
+
+#endif  // #ifndef NO_INIT@plus_wv2ccall
+
+	return
+#endif  // #ifndef _debug #else
+
+*dummyLabel : return
 #global
+// 変数初期化
+lb@plus_wv2ccall=*dummyLabel@plus_wv2ccall
+dim flg@plus_wv2ccall,9
+
+#ifndef NO_INIT@plus_wv2ccall
 init@plus_wv2ccall
+#endif  // #ifndef NO_INIT@plus_wv2ccall
+
+#endif  // #ifndef WV2CCall
 
 /*
 
@@ -1378,7 +1554,7 @@ https://blog.goo.ne.jp/hiro239415/e/aea2df33cd810488bbe7ca48d84656d1
   【改造手順】
     1. 下記を107行目awaitの後ろにコピペ。
 				#include "mod_regexp.as"
-				if vartype(dst2) != 2 : dst2 = "" : mae_iid = "dammy"
+				if vartype(dst2) != 2 : dst2 = "" : mae_iid = "dummy"
 				matches re, tmp, "^(.*?),\\s(.*?)$"
 				if stat = 0 : continue
 				iid = re(0,1)
