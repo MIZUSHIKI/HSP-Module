@@ -221,7 +221,7 @@ MIZUSHIKI
 ;ª ‚±‚±‚ğminƒo[ƒWƒ‡ƒ“‰»
 #ifdef _debug
 #module mod_netinclude
-#define NETMOD_PHPFILE "https://timetag.main.jp/HSP3NetModules/netmod.php?req=data"
+#define NETMOD_PHPFILE "https://timetag.main.jp/HSP3NetModules/netmod.php"
 
 #deffunc netinclude_GetData
 	netinit@ ;hspinet‚Ì‰Šú‰»
