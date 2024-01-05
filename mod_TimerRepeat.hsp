@@ -1,18 +1,26 @@
 // ––”ö‚É @ReadMe.txt, mod_TimerRepeat.hs •t‚«
 
 //
-//	mod_uniq.hsp - ver.1.0											by MIZUSHIKI
+//	mod_uniq.hsp - ver.1.1											by MIZUSHIKI
 //
 #ifndef uniq_start
 
 #define global uniq_start %tunique %i0
 #define global ctype uniq(%1) %tunique %1@%p
+#define global ctype uniq2(%1) %tunique %1@%p1
+#define global ctype uniq3(%1) %tunique %1@%p2
+#define global ctype uniq4(%1) %tunique %1@%p3
+#define global ctype uniq5(%1) %tunique %1@%p4
+#define global ctype uniq6(%1) %tunique %1@%p5
+#define global ctype uniq7(%1) %tunique %1@%p6
+#define global ctype uniq8(%1) %tunique %1@%p7
+#define global ctype uniq9(%1) %tunique %1@%p8
 #define global uniq_end %tunique %o0
 
 #endif
 
 //
-//	mod_TimerRepeat.hsp - ver.2.4									by MIZUSHIKI
+//	mod_TimerRepeat.hsp - ver.2.5									by MIZUSHIKI
 //
 #ifndef timer_repeat
 
@@ -403,9 +411,9 @@ _init_@modTimerRepeat
 
 „ª„ª„ª„ª„ª„ª„¶„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 ƒ‚ƒWƒ…[ƒ‹–¼„ mod_TimerRepeat.hsp
-  ƒo[ƒWƒ‡ƒ“„ 2.4
+  ƒo[ƒWƒ‡ƒ“„ 2.5
         ìÒ„ MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
-            „                                   Copyright(C) 2019-2022 MIZUSHIKI
+            „                                   Copyright(C) 2019-2024 MIZUSHIKI
 „ª„ª„ª„ª„ª„ª„¸„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 
 ¡ ŠT—v ¡
@@ -417,7 +425,7 @@ _init_@modTimerRepeat
 o—ˆ‚é‚æ‚¤‚É‚È‚è‚Ü‚·B
 
 
-@  ƒ‚ƒWƒ…[ƒ‹“à‹LqFmod_uniq.hsp - ver.1.0  
+@  ƒ‚ƒWƒ…[ƒ‹“à‹LqFmod_uniq.hsp - ver.1.1  
 @PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
 @w’è‚µ‚½‹æŠÔ‚É‚¨‚¢‚ÄA–¼‘O‚Ì”í‚ç‚È‚¢ƒ†ƒj[ƒN‚È•Ï”‚ğ’è‹`‚µ‚Ü‚·B
 
@@ -476,11 +484,13 @@ timer_setTimerEngine
 timer_fire
 @ƒ^ƒCƒ}[‚Ìƒ}ƒjƒ…ƒAƒ‹Às‚ÉŠm”F/Às‚ğs‚¤B
 
-Ÿ mod_uniq.hsp - ver.1.0 Ÿ
+Ÿ mod_uniq.hsp - ver.1.1 Ÿ
 uniq_start
 @uniq()‚ÌƒXƒR[ƒvŠJn
 uniq
 @ƒ†ƒj[ƒN‚È•Ï”‚ğ’è‹`
+uniqN
+@NŒÂŠO‘¤‚ÌƒXƒR[ƒv‚Ìuniq()•Ï”‚ğæ“¾
 uniq_end
 @uniq()‚ÌƒXƒR[ƒvI—¹
 
@@ -495,6 +505,10 @@ timer_stop
 
 ¡ —š—ğ
 PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+ version 2.5   2024/ 1/ 5
+ PPPPPPPPPPPP
+ E(mod_uniq ver.1.1)uniq2`uniq9‚ÌƒRƒ}ƒ“ƒh‚ğ’Ç‰ÁB
+
  version 2.4   2022/11/16
  PPPPPPPPPPPP
  Etimer_init‚ğw’è‚µ‚½‚Æ‚«‰Šú‰»‚É–{‘Ì‚àÀs‚³‚ê‚Ä‚µ‚Ü‚¤‚±‚Æ‚ª‚ ‚éƒoƒO‚ğC³B
@@ -544,7 +558,7 @@ timer_stop
 
  version 1.0   2019/10/31
  PPPPPPPPPPPP
-  EƒŠƒŠ[ƒXB
+ EƒŠƒŠ[ƒXB
 
 
 
@@ -560,13 +574,13 @@ timer_stop
 %type
 Šg’£–½—ß
 %ver
-2.4
+2.5
 %note
 mod_TimerRepeat.hsp‚ğƒCƒ“ƒNƒ‹[ƒh‚·‚é‚±‚ÆB
 %dll
 mod_TimerRepeat
 %date
-2022/11/16
+2024/1/5
 %author
 MIZUSHIKI
 %url
@@ -656,41 +670,27 @@ cnt : 0 ¨ 1 ¨ 2 ¨ 3 ¨ 4 ¨ 5 ¨ c
 %sample
 #include "../mod_TimerRepeat.hsp"
 
-#include "a2d.hsp"
+// •Àsˆ—‚Pi‚±‚ê‚ç‚Ìtimer_repeat“àˆ—‚Íˆê“xƒXƒ‹[‚³‚êA‘±‚¯‚Ätimer_loopˆÈ‰º‚ªˆ—‚³‚ê‚Ü‚·Bj
+pos 50,30 : mes "•Às‚PF40ms–ˆ"
+timer_repeat 40  ; 40ƒ~ƒŠ•b‚²‚Æ‚ÉÀs
+	color 255,255,255 : boxf 50,50,150,150 : color 255,0,0
+	line 100,100,100+(sin(M_PI*timer_cnt/10)*50),100+(cos(M_PI*timer_cnt/10)*50)
+	pos 100,100 : mes ""+timer_cnt
+timer_loop
 
-	// ƒ[ƒfƒBƒ“ƒO‰E‘¤
-	color 100,100,255
-	pos 100,62 : mes "Now Loading...(timer_repeat ˆ—)"
-	alCreateImage 0, 40,40 ; ‰~ŒÊ•`‰æ—p a2d image
+// •Àsˆ—‚Q
+pos 250,30 : mes "•Às‚QF60ms–ˆ"
+timer_repeat 60  ; 60ƒ~ƒŠ•b‚²‚Æ‚ÉÀs
+	color 255,255,255 : boxf 250,50,350,150 : color 0,0,255
+	line 300,100,300+(sin(M_PI*timer_cnt/36)*50),100+(cos(M_PI*timer_cnt/36)*50)
+	pos 300,100 : mes ""+timer_cnt
+timer_loop
 
-	// 16ms–ˆ‚Éƒ[ƒfƒBƒ“ƒO•`‰æ
-	// i‚±‚Ìtimer_repeat“à‚Ìˆ—‚Íˆê“xƒXƒ‹[‚³‚ê‚Ä‚·‚®timer_loopˆÈ‰º‚ªˆ—‚³‚ê‚Ü‚·Bj
-	timer_repeat 16
-		alErase : alColor 100,100,255,255 ; ˆê’U a2d image ‚ğ‹ó‚É‚µ‚Ä
-		alColor 255,255,255, 255 : alFillRect : alColor 0,0,200, 255
-		alDrawArc 5,5, 30,30, (timer_cnt*5)\360, (timer_cnt*5)\720-360 +30 ; ‚­‚é‚­‚é
-		redraw 0
-		color 255,255,255 : boxf 50,50,100,100
-		alCopyImageToScreen 0,0,50,50 ; a2d image ‚©‚çƒEƒBƒ“ƒhƒE‚É‰æ‘œƒRƒs[
-		redraw 1
-	timer_loop
-	id_timer=stat ;timer_repeat‚ÌID
-	
-	// 500ms‚«‚´‚İ‚ÅƒJƒEƒ“ƒg10•b(•Às‚µ‚Ä•Êˆ—)
-	repeat 20,1
-		pos 5,5 :color :mes ""+cnt+" (repeat ˆ—)"
-		await 500
-		color 255,255,255 : boxf 0,0,,25
-	loop
-	pos 5,5 :color :mes "stop (repeat ˆ—)"
-
-	onclick *click
-	// stop‚µ‚Ä‚àtimer_repeat‚ğg—p‚µ‚Ä‚é‚Ì‚Å~‚Ü‚è‚Ü‚¹‚ñBiÀÛ‚Ístop‚ª‘‚«Š·‚¦‚ç‚ê‚Ä‚¨‚è’†‚Åawaitƒ‹[ƒv‚µ‚Ä‚éj
-	stop
-*click
-	timer_kill id_timer ; ƒ^ƒCƒ}[ƒ‹[ƒvI—¹
-	pos 5,22 :color :mes "timer_kill"
-	stop
+// ƒƒCƒ“‚Ìƒ‹[ƒvƒvƒƒOƒ‰ƒ€iƒ^ƒCƒgƒ‹ƒo[‚ÅƒJƒEƒ“ƒgj
+repeat
+	title "ƒƒCƒ“F count= "+cnt
+	await 1000
+loop
 
 %href
 timer_repeat
@@ -1549,6 +1549,8 @@ DebugƒEƒBƒ“ƒhƒE„•Ï”„ƒ‚ƒWƒ…[ƒ‹‚ğŒ©‚Ä‚à‚ç‚¤‚Æ‚í‚©‚è‚Ü‚·‚ªA–¼‘O‚Ìˆá‚¤•Ï”‚ğ’è‹
 timer_repeat,timer_loop‚É‚ÍŠù‚É‚»‚ê‚¼‚êuniq_start,uniq_end‚ª‘g‚İ‚Ü‚ê‚Ä‚¢‚Ü‚·B
 ‚»‚Ì‚½‚ßAtimer_repeat`timer_loop‹æŠÔ‚Å‚Íuniq_start,uniq_end‚ğ‹Lq‚·‚é‚±‚Æ‚È‚­uniq()‚ªg—p‚Å‚«‚Ü‚·B
 
+uniq2, uniq3, ` uniqN `, uniq9 ‚Æw’è‚·‚é‚ÆNŒÂŠO‘¤‚ÌƒXƒR[ƒv‚Ìuniq()‚ğw’è‚·‚é‚±‚Æ‚ª‚Å‚«‚Ü‚·B
+
 %sample
 //
 //  uniq()ŒŸØ—pƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg
@@ -1572,7 +1574,7 @@ uniq_start
 	
 	uniq_start
 
-		uniq(a) = "a" : uniq(b) = "b" ;: uniq(c) = "c"
+		uniq(a) = "‚ " : uniq(b) = "‚¢" ;: uniq(c) = "‚¤"
 		mes "a = "+uniq(a),1 : mes "\tb = "+uniq(b),1 : mes "\tc = "+uniq(c) :pos 0
 		ddim uniq(d),4
 		uniq(d)=1.2, 2.3, 3.4
