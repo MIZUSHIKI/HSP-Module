@@ -1,7 +1,7 @@
 // ––”ö‚É @ReadMe.txt, a2d+AlphaLayer.hs •t‚«
 
 //
-//	a2d+AlphaLayer.hsp - ver.2.3									by MIZUSHIKI
+//	a2d+AlphaLayer.hsp - ver.2.4									by MIZUSHIKI
 //
 #if __hspver__<=$3507
 #packopt manifest "usedAlphaLayer.manifest" ;HSP3.5—p(3.5.1‚Å‚ÍŒø‰Ê‚È‚µ)
@@ -366,19 +366,26 @@ __manifest_kakunin__ ;
 	dfp6 = p1
 	if p1 = 9999 : dfp6 = imgHeightArr@a2d(p2)
 	return
+#deffunc setAcitiDfp6_2 int p1, int p2, int p3
+	dfp6 = p1
+	if p1 = 9999 {
+		dfp6 = imgHeightArr@a2d(p2)
+		if dfp6 > imgHeightArr@a2d(p3) : dfp6 = imgHeightArr@a2d(p3)
+	}
+	return
 ;-----------------------------------------------------------
 ; Copy (prm : srcID, destID, destX, destY, width, height, srcX, srcY)
 #undef alCopyImageToImage
 #undef alCopyImageToScreen
 #undef alCopyScreenToImage
-#define global alCopyImageToImage(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)		setAcitiDfp6 %6,%2 :alStretchImageToImage %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
-#define global alCopyImageToScreen(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)	setAcitiDfp6 %6,%2 :alStretchImageToScreen %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
+#define global alCopyImageToImage(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)		setAcitiDfp6_2 %6,%1,%2 :alStretchImageToImage %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
+#define global alCopyImageToScreen(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)	setAcitiDfp6 %6,%1 :alStretchImageToScreen %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
 #define global alCopyScreenToImage(%1=0, %2=0, %3=0, %4=0, %5=9999, %6=9999, %7=0, %8=0)	setAcitiDfp6 %6,%2 :alStretchScreenToImage %1, %2, %7, %8, %5, dfp6@AlphaLayerMod, %3, %4, %5, dfp6@AlphaLayerMod
 
 ;-----------------------------------------------------------
 //«‚±‚ê‚Å‚ÍÁ‚¹‚È‚¢‚±‚Æ‚ª•ª‚©‚Á‚½i@AlphaLayerMod“à‚Å#undef‚µ‚Ä‚à@a2dƒ‚ƒWƒ…[ƒ‹“à‚Åg‚í‚ê‚éalCreateImage‚Í‰½ŒÌ‚©@a2d“à‚Å¶‚«c‚Á‚Ä‚¢‚Ä‚»‚¿‚ç‚ªg‚í‚ê‚éj
 ;#undef alCreateImage
-;#define global alCreateImage(%1=0, %2=640, %3=480)	framess@AlphaLayerMod(%1)=1:dialog "tses":alCreateImage_ %1, %2, %3
+;#define global alCreateImage(%1=0, %2=640, %3=480)	framess@AlphaLayerMod(%1)=1:alCreateImage_ %1, %2, %3
 // imgValidArr@a2d = 3 ‚ğ‹L‰¯‚·‚é‚±‚Æ‚Å·•Ê‰»
 // Artlet2D ‚É‹@”\‚ğ’Ç‰Á
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1136,9 +1143,9 @@ _init_@AlphaLayerMod
 
 „ª„ª„ª„ª„ª„ª„¶„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 ƒ‚ƒWƒ…[ƒ‹–¼„ a2d+AlphaLayer.hsp
-  ƒo[ƒWƒ‡ƒ“„ 2.3
+  ƒo[ƒWƒ‡ƒ“„ 2.4
         ìÒ„ MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
-            „                                   Copyright(C) 2019-2022 MIZUSHIKI
+            „                                   Copyright(C) 2019-2024 MIZUSHIKI
 „ª„ª„ª„ª„ª„ª„¸„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª„ª
 
 ¡ ŠT—v ¡
@@ -1234,6 +1241,10 @@ alGetLoopCount
 
 ¡ —š—ğ
 PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+ version 2.4   2024/ 1/ 5
+ PPPPPPPPPPPP
+ EalCopyImageToImage/ImageToScreen‚ª‚‚³È—ª³‚µ‚­ƒRƒs[‚³‚ê‚È‚¢ƒoƒO‚ğC³B
+
  version 2.3   2022/11/16
  PPPPPPPPPPPP
  EalalWindow,alalWindow_SetTransparentŠÖ”‚ğ’Ç‰ÁB
@@ -1291,7 +1302,7 @@ alGetLoopCount
 %type
 Šg’£–½—ß
 %ver
-2.3
+2.4
 %note
 a2d+AlphaLayer.hsp‚ğƒCƒ“ƒNƒ‹[ƒh‚·‚é‚±‚ÆB
 ‘Î‰OSFWindows 8 ˆÈ~
