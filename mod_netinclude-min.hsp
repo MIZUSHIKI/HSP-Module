@@ -1,25 +1,25 @@
 #ifdef _debug///////////////////////////////////////////////////////////////////////////////////////////////
-#include"hspinet.as"//////////////////////////////////////////////////// mod_netinclude-min.hsp - Ver.3.1 //
+#include"hspinet.as"//////////////////////////////////////////////////// mod_netinclude-min.hsp - Ver.3.2 //
 #include"mod_regexp.as"///////////////////////////////////////////////////////////////////// by MIZUSHIKI //
 #define netinclude(%1,%2=0,%3=0,%4=0) addition %1*//////////////////////////////////////////////////////////
-a@@="":w@@=dir_exe+"\\common\\":y@@="#net\include":notesel a@@:noteload"hsptmp":i@@="(?:\\s*,\\s*\"(.*?)\")?
-noteunsel:matches a@@,a@@,y@@+"\\s*\"(net/|https?)?(.+?)\"\\s*/\\s*,?\\s*(\\w*)(\n)?\\s*;*/*"+i@@+i@@:b@@="0
-repeat stat:a@@.cnt="0":x@@=w@@:if"current"=a@@.cnt.3{x@@=""}exist x@@+a@@.cnt.1+a@@.cnt.2:if strsize<0{::::
-if""!b@@{netinit:b@@=""}a@@.cnt="":if""=x@@{a@@.cnt.3="2":m@@++}else{a@@.cnt.3="1":n@@++}}loop:if n@@+m@@>0{
-s@@="","","":z@@="ダウンロード":repeat 2,1:i@@=cnt:foreach a@@:if"0"=a@@.cnt{continue}if""+i@@!a@@.cnt.3{:::
-continue}if"net/"=a@@.cnt.1{a@@.cnt="0":k@@=cnt:if""=b@@{neturl"https\://timetag.main.jp/HSP3NetModules/netm
+a@@="hsptmp":exist a@@:if strsize<0{a@@=__file__}notesel a@@:noteload a@@:i@@="(\\s*,\\s*\"(.*?)\")?":b@@="0
+y@@="#netinclud":matches a@@,a@@,y@@+{"e\\s*"(net/|https?)?(.+)"\\s*/\\s*,?\\s*(\\w*)(\n)?\\s*;*/*"}+i@@+i@@
+w@@=dir_exe+"\\common\\":repeat stat:a@@.cnt="0":x@@=w@@:v@@=a@@.cnt.1+a@@.cnt.2:if"current"=a@@.cnt.3:x@@="
+exist x@@+v@@:if strsize<0{if""!b@@{netinit:b@@=""}a@@.cnt="":if""=x@@{a@@.cnt.3="2":m@@++}else{a@@.cnt.3="1
+n@@++}}loop:if n@@+m@@{s@@="","","":z@@="ダウンロード":repeat 2,1:i@@=cnt:foreach a@@:if"0"=a@@.cnt{continue
+}if""+i@@!a@@.cnt.3{continue}if"net/"=a@@.cnt.1{if""=b@@{neturl"https\://timetag.main.jp/HSP3NetModules/netm
 netrequest_get"od.php?req=data":do:wait 5:netexec n@@:until n@@:netgetv b@@:matches b@@,b@@,"^(.*?)\t(.*?)$"
-j@@=stat}repeat j@@:if getpath(b@@.cnt.1,16)=getpath(a@@.k@@.2,16){a@@.k@@=b@@.cnt.2:a@@.k@@.2=b@@.cnt.1::::
-break}loop:if"0"=a@@.cnt{continue}s@@.i@@+=">net/(->"+a@@.cnt+")"+a@@.cnt.2+"\n"}else{s@@.i@@+=">"+a@@.cnt.1
-s@@.i@@+=a@@.cnt.2+"\n"}loop:loop:if""!s@@.1{s@@.0+=w@@+"\n\nに\n\n"+s@@.1:if""!s@@.2{s@@.0+="\nを"+z@@+"、"
-s@@.0+="\n------\n\n"}}if""=s@@.1+s@@.2{dialog"モジュールデータが見つかりませんでした",1,y@@:end}if""!s@@.2{
-s@@.0+=dir_cur+"\n\nに\n\n"+s@@.2}dialog s@@.0+"\nを"+z@@+"します。",2,y@@:if stat=6{s@@="":x@@=dir_cur:::::
+j@@=stat}a@@.cnt="0":k@@=cnt:repeat j@@:if getpath(b@@.cnt.1,16)=getpath(a@@.k@@.2,16){a@@.k@@=b@@.cnt.2::::
+a@@.k@@.2=b@@.cnt.1:break}loop:if"0"=a@@.cnt{continue}s@@.i@@+=">net/"+a@@.cnt.2+"  ["+a@@.cnt+"]\n"}else{::
+s@@.i@@+=">"+a@@.cnt.1+a@@.cnt.2+"\n"}loop:loop:if""!s@@.1{s@@+=w@@+"\n\nに\n\n"+s@@.1:if""!s@@.2{s@@+="\nを
+s@@+=z@@+"、\n-----\n\n"}}y@@+="e":if""=s@@.1+s@@.2{dialog"モジュールデータが見つかりませんでした",1,y@@:end
+}if""!s@@.2{s@@+=dir_cur+"\n\nに\n\n"+s@@.2}dialog s@@+"\nを"+z@@+"します",2,y@@:if stat=6{x@@=dir_cur:s@@="
 foreach a@@:if"0"=a@@.cnt{continue}if"1"=a@@.cnt.3{chdir w@@}a@@.cnt.3=a@@.cnt.1+":/":a@@.cnt.1+=a@@.cnt.2::
 split a@@.cnt.1,"/",b@@:repeat stat-1:dirlist i@@,b@@.cnt,5:if stat=0{mkdir b@@.cnt}chdir b@@.cnt:loop::::::
-a@@.cnt+=a@@.cnt.2:j@@=a@@.cnt.6:if$70747468!lpeek(a@@.cnt.1){a@@.cnt.3="https\://raw.githubusercontent.com/
+a@@.cnt+=a@@.cnt.2:j@@=a@@.cnt.8:if$70747468!lpeek(a@@.cnt.1){a@@.cnt.3="https\://raw.githubusercontent.com/
 }neturl replace(replace(a@@.cnt.3+a@@.cnt,"#.*$",""),"？","?"):netrequest_get"":do:wait 5:netexec n@@:::::::
-until n@@:netgetv b@@:if n@@<0{s@@+="\n>"+a@@.cnt}else{if""!j@@{nkfcnv b@@,b@@,j@@,,stat}if""!a@@.cnt.5{::::
-b@@=submatch(b@@,a@@.cnt.5,,1)}m@@=getpath(a@@.cnt,8):notesel b@@:notesave m@@:if instr(j@@,0,"D")!-1{::::::
+until n@@:netgetv b@@:if n@@<0{s@@+="\n>"+a@@.cnt}else{if""!j@@{nkfcnv b@@,b@@,j@@,,stat}if""!a@@.cnt.6{::::
+b@@=submatch(b@@,a@@.cnt.6,,1)}m@@=getpath(a@@.cnt,8):notesel b@@:notesave m@@:if instr(j@@,0,"D")!-1{::::::
 m@@=dir_cur+"/"+m@@:k@@="powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '"+m@@+"' -Raw;$d=[S"
 k@@+="ystem.Web.HttpUtility]::HtmlDecode($s.Replace('<br>',\\\"`r`n\\\"));Set-Content -Path '"+m@@+"' $d;\""
 exec k@@,2}}chdir x@@:loop:if""!s@@{dialog z@@+"失敗\n"+s@@:end}dialog z@@+"完了。\n再実行して下さい":end}}:
