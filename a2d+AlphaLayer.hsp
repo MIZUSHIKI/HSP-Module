@@ -950,8 +950,8 @@ __manifest_kakunin__ ;
 // ƒJ[ƒ\ƒ‹‚ªƒAƒ‹ƒtƒ@ƒŒƒCƒ„[‚Éæ‚Á‚Ä‚¢‚é‚©
 #define global ctype alalIsOnLayer(%1,%2=ginfo_mx,%3=ginfo_my) _alalIsPointOnLayer@AlphaLayerMod(%1,%2,%3)
 #defcfunc _alalIsPointOnLayer@AlphaLayerMod int imageID, int _mx, int _my, local _rect
-	if length(hwnds)<=imageID :return
-	if alalIsShown(imageID) == 0 : return
+	if length(hwnds)<=imageID :return 0
+	if alalIsShown(imageID) == 0 : return 0
 	// ‚Ü‚¸alalGetRect‚ÅƒŠ[ƒWƒ‡ƒ“‚ğl—¶‚µ‚½Rect‚Ì’†‚Éû‚Ü‚Á‚Ä‚¢‚é‚©‚ğŠm”F
 	alalGetRect imageID,_rect,-1
 	if _mx<_rect(0) || _rect(2)<_mx || _my<_rect(1) || _rect(3)<_my : return 0
@@ -1244,6 +1244,7 @@ alGetLoopCount
  version 2.4   2024/ 1/ 5
  PPPPPPPPPPPP
  EalCopyImageToImage/ImageToScreen‚ª‚‚³È—ª³‚µ‚­ƒRƒs[‚³‚ê‚È‚¢ƒoƒO‚ğC³B
+ EalalIsOnLayerŠÖ”‚ª•Ô‚è’l‚ğ•Ô‚³‚¸ƒGƒ‰[‚É‚È‚é‚±‚Æ‚ª‚ ‚éƒoƒO‚ğC³B
 
  version 2.3   2022/11/16
  PPPPPPPPPPPP
