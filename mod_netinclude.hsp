@@ -5,9 +5,9 @@
 %dll ; モジュール名 
 mod_netinclude
 %ver ; バージョン 
-3.2
+3.3
 %date ; 更新日 
-2024/1/5
+2024/1/18
 %author ; 著作者 
 MIZUSHIKI
 
@@ -57,14 +57,14 @@ MIZUSHIKI
 				index@@ = lpeek(buf@@, 24) ;pt_ds
 				sdim buf@@, size@@
 				bload file@@, buf@@, size@@, index@@ : index@@ = 0
-				do
-					if index@@ >= size@@ : _break
+				repeat
+					if index@@ >= size@@ : break
 					dupptr _buf@@, varptr(buf@@) + index@@, 2, 2 : index@@ += strlen(_buf@@) + 1 ;一文字列読み込んだ。次のindexを指しておく
-					if getpath(_buf@@,2) == ".hsp" { ;Data Segment(文字列などの固定データ)の中で最初に出てきた*.hspが実行開始スクリプトファイルではないかと推測
-						a@@ = _buf@@
-						_break
-					}
-				until getpath(_buf@@,2) != ".as" ;hspdef.as,userdef.asが最初に来る(?)みたいなのでその直後の*.hspまでを見る
+					if getpath(_buf@@,18) != ".hsp" : continue ;Data Segment(文字列などの固定データ)の中で最初に出てきた.\*.hsp(またはdir_cur+\*.hsp)が実行開始スクリプトファイルではないかと推測
+					if wpeek(_buf@@) != 0x5C2E && getpath(_buf@@,32) != dir_cur+"\\" : continue
+					a@@ = _buf@@
+					break
+				loop
 				if a@@ != "" {
 					notesel a@@
 					noteload a@@
@@ -81,7 +81,7 @@ MIZUSHIKI
 	}
 	i@@="(\\s*,\\s*\"(.*?)\")?"
 	b@@="0" ;hspinet初期化済みかどうかのフラグ
-	y@@="#netinclud" ;この行の文字数切り詰めと#netincludeの文字出現回避の必要があるため末尾1文字カット
+	y@@="#netinclud" ;#netincludeの文字出現回避の必要があるため末尾1文字カット
 	matches a@@,a@@,y@@+{"e\\s*"(net/|https?)?(.+)"\\s*/\\s*,?\\s*(\\w*)(\n)?\\s*;*/*"}+i@@+i@@
 	w@@=dir_exe+"\\common\\"
 	repeat stat
@@ -445,8 +445,8 @@ netinclude_PostModule
 HSP3NetModulesデータベースにモジュール情報を登録
 
 %prm
-"GitHub_URL/module_name"/
-"GitHub_URL/module_name"/ : "GitHubのURLを含めたモジュール名文字列"/
+"GitHub_URL/module_name"
+"GitHub_URL/module_name" : "GitHubのURLを含めたモジュール名文字列"/
 
 %inst
 HSP3NetModulesデータベースにモジュール情報を登録します。
@@ -486,8 +486,8 @@ netinclude_DeleteModule
 HSP3NetModulesデータベースからモジュール情報を削除
 
 %prm
-"GitHub_URL/module_name"/
-"GitHub_URL/module_name"/ : "GitHubのURLを含めたモジュール名文字列"/
+"GitHub_URL/module_name"
+"GitHub_URL/module_name" : "GitHubのURLを含めたモジュール名文字列"
 
 %inst
 HSP3NetModulesデータベースからモジュール情報を削除します。
