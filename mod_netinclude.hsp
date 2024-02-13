@@ -401,9 +401,10 @@ MIZUSHIKI
 					}else {
 						netgetv buf  ; 受信データ
 						if includeResult.cnt.6 != ""{
-							nkfcnv buf, buf, includeResult.cnt.6  ; NKF変換/HTMLデコード オプションがあれば変換する
+							nkfcnv buf, buf, includeResult.cnt.6, , stat*2  ; NKF変換/HTMLデコード オプションがあれば変換する [予防のため最大バッファを受信サイズの倍にしておく]
 						}
-						nkfcnv buf, buf, "Lw"  ; 改行コードLFをCR+LFに変換する
+						matches dummy, buf, "\\n"  ; (LFかもしれない)改行の数を取得 [変換後のサイズを計算するため]
+						nkfcnv buf, buf, "Lw", , strlen(buf) + stat  ; 改行コードLFをCR+LFに変換する
 						if includeResult.cnt.5 != "" {
 							buf = submatch(buf, includeResult.cnt.5, , 1)  ; ネットのページの一部からモジュールを切り出したいときの正規表現
 						}
@@ -445,6 +446,7 @@ MIZUSHIKI
 			dialog "ダウンロード完了。\n再実行してください", 0, "#netinclude" : end  ; ダウンロードしたら再実行実行
 		}
 	}
+	sdim hsptmpBuf  ; メモリ解放
 	return
 
 // (ローカル命令)ファイルダウンロード
