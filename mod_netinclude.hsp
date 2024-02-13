@@ -26,7 +26,11 @@ MIZUSHIKI
 
 #uselib "hspext.dll"
 #func fxren fxren 5
+#if __hspver__ < 14081  ; 0x3701未満
+#func pipeexec pipeexec 5
+#else
 #func pipeexec pipeexec $202
+#endif
 #func pipeget pipeget $83
 #func dirlist2 dirlist2 5
 #func dirlist2h dirlist2h 0
@@ -496,7 +500,7 @@ MIZUSHIKI
 	// 展開後ファイル数を取得
 	cmd = "cmd /c powershell \"add-type -assemblyname system.io.compression.filesystem;[io.compression.zipfile]::openread('"+zipFilePath+"').entries | ft length\""
 	pipe_buf = "" : pipe_ln = ""
-	pipeexec pipe_buf, cmd, 0
+	pipeexec pipe_buf, cmd
 	do : wait 1 : pipeget pipe_ln : until stat==0
 
 	index = 0
@@ -510,7 +514,7 @@ MIZUSHIKI
 	// 展開後のトップのフォルダ名を取得
 	cmd = "cmd /c powershell \"add-type -assemblyname system.io.compression.filesystem;[io.compression.zipfile]::openread('"+zipFilePath+"').entries | ft -a fullname\""
 	pipe_buf = "" : pipe_ln = ""
-	pipeexec pipe_buf, cmd, 0
+	pipeexec pipe_buf, cmd
 	do : wait 1 : pipeget pipe_ln : until stat==0
 	index = 0
 	getstr dummy, pipe_buf, index : index += strsize
@@ -536,7 +540,7 @@ MIZUSHIKI
 	// 実際に展開
 	pipe_buf = "" : pipe_ln = ""
 	cmd = "cmd /c powershell \"Expand-Archive -Path '"+zipFilePath+"' -DestinationPath '"+folderPath_unzip + pathSupport+"'\" -Force"
-	pipeexec pipe_buf, cmd, 0
+	pipeexec pipe_buf, cmd
 	// 展開開始されるまで待機
 	repeat
 		wait 75
