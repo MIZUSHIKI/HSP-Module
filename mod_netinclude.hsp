@@ -5,9 +5,9 @@
 %dll ; モジュール名 
 mod_netinclude
 %ver ; バージョン 
-4.0
+4.1
 %date ; 更新日 
-2024/2/13
+2024/3/3
 %author ; 著作者 
 MIZUSHIKI
 
@@ -418,7 +418,7 @@ MIZUSHIKI
 						noteunsel
 						if instr(includeResult.cnt.6, 0, "D") != -1 { ;どうしてもHTMLエンティティをデコードしたかったのでD隠しコマンドでpowershellを利用してHTMLデコード。ついでに<br>も改行化
 							hspPath = dir_cur + "/" + hspName
-							exec "powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '" + hspPath + "' -Raw;$d=[System.Web.HttpUtility]::HtmlDecode($s.Replace('<br>',\\\"`r`n\\\"));Set-Content -Path '" + hspPath + "' $d;\"", 2
+							exec "powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '" + hspPath + "' -Raw;$t=$s.Replace('<br>',\\\"`r`n\\\") -replace ‘<(\\\"[^\\\"]*\\\"|''[^'']*''|[^''\\\">])*>’,'';$d=[System.Web.HttpUtility]::HtmlDecode($t);Set-Content -Path '" + hspPath + "' $d;\"", 2
 						}
 					}
 				}else {
@@ -863,7 +863,10 @@ html{
 }html
 
 p3オプションは nkfcnv のオプション値と同じものです。文字コードの指定が必要な場合に使用してください。
-隠しオプションとして "D" を指定することができHTMLエンティティ(#quot;等)の展開と<br>の改行化を行えます。
+隠しオプションとして "D" を指定することができ以下の処理が実行されます。
+・<br>の改行化
+・HTMLタグの除去
+・HTMLエンティティ(#quot;等)の展開
 
 p2正規表現のカンマ前にのみ改行を入れられます。文頭に「;」か「//」を入れてコメントアウトしてください。コメントになっていても netinclude はこの行を認識/処理しています。
 html{
