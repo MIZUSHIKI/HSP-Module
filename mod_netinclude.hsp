@@ -5,9 +5,9 @@
 %dll ; ƒ‚ƒWƒ…[ƒ‹–¼ 
 mod_netinclude
 %ver ; ƒo[ƒWƒ‡ƒ“ 
-4.1
+4.2
 %date ; XV“ú 
-2024/3/3
+2024/7/19
 %author ; ’˜ìÒ 
 MIZUSHIKI
 
@@ -48,7 +48,7 @@ MIZUSHIKI
 #uselib "kernel32.dll"
 #func GetCommandLine "GetCommandLineA"
 #uselib "shlwapi.dll"
-#func global PathIsDirectory "PathIsDirectoryA" sptr
+#func PathIsDirectory "PathIsDirectoryA" sptr
 #define NETMOD_PHPFILE "https://timetag.main.jp/HSP3NetModules/netmod.php"
 
 // Às
@@ -85,6 +85,12 @@ MIZUSHIKI
 			}
 		}
 	}
+
+	netinited = 0
+	hsptmpBuf = ""
+	uselibResult = ""
+	includeresult = ""
+	
 	if hsptmpFile != "" {
 		notesel hsptmpBuf
 		noteload hsptmpFile
@@ -161,6 +167,12 @@ MIZUSHIKI
 		modulesCurrent = ""
 		modulesCommon = ""
 		falesComment = ""
+		hasNetmodData = 0
+		netmoddata = ""
+		info = 0 : res = 0
+		dirs = ""
+		dummy = ""
+		inited_pipeBuf = 0
 		repeat 2, 1
 			__cnt = cnt  ; cnt==1‚Ì‚Æ‚«current‚ğˆ—Bcnt==2‚Ì‚Æ‚«common‚ğˆ—
 			// netuselib
@@ -297,7 +309,7 @@ MIZUSHIKI
 				}
 				split uselibResult.cnt.1, "/", dirs  ; URL(ƒfƒBƒŒƒNƒgƒŠ)\‘¢•ª‰ğ
 				repeat stat-1  ; [‚¢ŠK‘w‚ğì‚Á‚Ä‚¢‚­
-					dirlist i, dirs.cnt, 5  ; ƒtƒHƒ‹ƒ_‘¶İŠm”F
+					dirlist dummy, dirs.cnt, 5  ; ƒtƒHƒ‹ƒ_‘¶İŠm”F
 					if stat == 0 { mkdir dirs.cnt }  ; ƒtƒHƒ‹ƒ_‚ª‘¶İ‚µ‚È‚¢‚È‚çì‚é
 					chdir dirs.cnt  ; ƒJƒŒƒ“ƒgƒfƒBƒŒƒNƒgƒŠ‚ğ1ŠK‘w[‚­‚ÉˆÚ“®
 				loop
@@ -383,7 +395,7 @@ MIZUSHIKI
 				}
 				split includeResult.cnt.1, "/", dirs  ; URL(ƒfƒBƒŒƒNƒgƒŠ)\‘¢•ª‰ğ
 				repeat stat-1  ; [‚¢ŠK‘w‚ğì‚Á‚Ä‚¢‚­
-					dirlist i, dirs.cnt, 5  ; ƒtƒHƒ‹ƒ_‘¶İŠm”F
+					dirlist dummy, dirs.cnt, 5  ; ƒtƒHƒ‹ƒ_‘¶İŠm”F
 					if stat == 0 { mkdir dirs.cnt }  ; ƒtƒHƒ‹ƒ_‚ª‘¶İ‚µ‚È‚¢‚È‚çì‚é
 					chdir dirs.cnt  ; ƒJƒŒƒ“ƒgƒfƒBƒŒƒNƒgƒŠ‚ğ1ŠK‘w[‚­‚ÉˆÚ“®
 				loop
@@ -447,7 +459,7 @@ MIZUSHIKI
 			if falesComment != ""{
 				dialog "ƒ_ƒEƒ“ƒ[ƒh¸”s\n"+falesComment, 1, "#netinclude" : end
 			}
-			dialog "ƒ_ƒEƒ“ƒ[ƒhŠ®—¹B\nÄÀs‚µ‚Ä‚­‚¾‚³‚¢", 0, "#netinclude" : end  ; ƒ_ƒEƒ“ƒ[ƒh‚µ‚½‚çÄÀsÀs
+			dialog "ƒ_ƒEƒ“ƒ[ƒhŠ®—¹\nÄÀs‚µ‚Ä‚­‚¾‚³‚¢", 0, "#netinclude" : end  ; ƒ_ƒEƒ“ƒ[ƒh‚µ‚½‚çÄÀsÀs
 		}
 	}
 	sdim hsptmpBuf  ; ƒƒ‚ƒŠ‰ğ•ú
@@ -551,6 +563,7 @@ MIZUSHIKI
 	dirCur = dir_cur
 	chdir folderPath_unzip + "\\" + topFolderName_unzip
 	dirlist2h 4
+	refs = 0 : d2size = 0
 	mref refs,65
 	do : wait 100
 		dirlist2 d2size, "*", 1
@@ -611,6 +624,7 @@ MIZUSHIKI
 // HSP3NetModulesƒf[ƒ^ƒx[ƒX‚Éƒ‚ƒWƒ…[ƒ‹î•ñ‚ğ“o˜^
 #deffunc netinclude_PostModule str p1
 	p1_ = p1
+	ep1 = ""
 	urlencode ep1, p1_
 	netinit  ; hspinet‚Ì‰Šú‰»
 	neturl NETMOD_PHPFILE + "?req=post&hsp="+ep1
@@ -626,6 +640,7 @@ MIZUSHIKI
 	screen ginfo(25)
 	title "#netinclude - netinclude_PostModule"
 	if strmid( buf, 0, 7 ) = "false: " {
+		errorMessage = ""
 		getstr errorMessage, buf, 7, ';'
 		switch errorMessage
 		case "not_found__datafile"
@@ -934,14 +949,14 @@ p1‚Åw’è‚µ‚½dll‚ªƒJƒŒƒ“ƒgƒtƒHƒ‹ƒ_‚É‘¶İ‚µ‚È‚¢ê‡AGitHub‚©‚çƒ_ƒEƒ“ƒ[ƒh‚µ‚Ü‚·
 HSP3NetModulesƒf[ƒ^ƒx[ƒX‚É“o˜^‚µ‚Ä‚ ‚édll‚ÍGitHub‚ÌURL‚Ìˆê•”‚ğÈ—ª‚µ‚Äunet/v‚Æ‘‚­‚±‚Æ‚Å—˜—p‚ª‚Å‚«‚Ü‚·B
 html{
 <pre style="background-color: #F0F0F0;">
-#netuselib "net/sayhello.dll"/
+#netuselib "net/sayhello.dll"
 </pre>
 }html
 
 HSP3NetModulesƒf[ƒ^ƒx[ƒX‚É“o˜^‚³‚ê‚Ä‚¢‚È‚¢‚à‚Ì‚àƒŠƒ|ƒWƒgƒŠ–¼‚Ü‚Å“ü—Í‚·‚é‚±‚Æ‚Åƒ_ƒEƒ“ƒ[ƒh‚Å‚«‚Ü‚·B
 html{
 <pre style="background-color: #F0F0F0;">
-#netuselib "MIZUSHIKI/HSP-Module/master/sayhello.dll"/
+#netuselib "MIZUSHIKI/HSP-Module/master/sayhello.dll"
 </pre>
 }html
 (https://raw.githubusercontent.com/MIZUSHIKI/HSP-Module/master/sayhello.dll : GitHub-Rawƒtƒ@ƒCƒ‹URL)
@@ -960,7 +975,7 @@ p1‚Éwglobalx(wgx‚Ì‚İ‚Å‚à—Ç‚¢)‚Æ‹Lq‚·‚é‚ÆƒJƒŒƒ“ƒgƒtƒHƒ‹ƒ_‚Å‚È‚­commonƒtƒHƒ‹ƒ
 y —á z
 html{
 <pre style="background-color: #F0F0F0;">
-#netuselib "https/suwa.pupu.jp/HSP/modules/sayhello.dll"/
+#netuselib "https/suwa.pupu.jp/HSP/modules/sayhello.dll"
 </pre>
 }html
 
