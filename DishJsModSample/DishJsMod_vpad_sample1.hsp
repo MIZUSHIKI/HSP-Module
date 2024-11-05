@@ -1,0 +1,67 @@
+/*
+DishJsMod_vpad_sample1.hsp
+
+modname = バーチャルコントローラVPAD
+modurl = https://miecat.com/hsp/
+developer =  窓月らら(miecat)
+description = HSP3Dish.jsで仮想コントローラを使うことができます！
+*/
+
+// データファイルが必要な場合抽出
+#addition "COPIED_FILES_vpad_sample1.as"
+#ifndef __copied_files__vpad_sample1__
+	dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
+	folder = "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/"
+	file.0 = "mod_vpad.png"
+	file.1 = "vpad_sample.png"
+	file.2 = "vpad_dmy.wav"
+	file.3 = "vpad_eout.wav"
+	file.4 = "vpad_info.wav"
+	file.5 = "vpad_pdmg.wav"
+	file.6 = "vpad_pout.wav"
+	file.7 = "vpad_roll.wav"
+	file.8 = "vpad_shot.wav"
+	file.9 = "vpad_bgm.wav"
+	file.10= "vpad_bgm_w.wav"
+	foreach file
+		exist folder+file(cnt)
+		if strsize != -1 : bcopy folder+file(cnt), "data\\"+getpath(folder+file(cnt),8) : else : false = 1
+	loop
+	if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
+		script = "#define __copied_files__vpad_sample1__"
+		notesel script : notesave "COPIED_FILES_vpad_sample1.as"
+		// hsp3dish.ini でゲームのサイズを指定
+		script = "; hsp3dish settings\nwx=320\nwy=480\nautoscale=0"
+		notesel script : notesave "hsp3dish.ini"
+		// モジュールとドキュメントを分かりやすくModuleフォルダに取り出す
+		exist folder+"mod_vpad.as"
+		if strsize != -1 {
+			dirlist dummy, "Module", 5 : if stat == 0 : mkdir "Module"
+			bcopy folder+"mod_vpad.as", "Module\\mod_vpad.as"
+			bcopy folder+"mod_vpad.txt", "Module\\mod_vpad.txt"
+			dialog "モジュールおよびドキュメントを\"Module\"フォルダにコピーしました"
+		}
+	}
+#endif
+
+// ezlocal
+#include "hsp3dish.as"
+#include "ezlocal-dish-js.hsp"
+ezLocalJS
+
+// -- mod_vpad.as の特殊設定
+#define global VPAD_KB		// キーボード有効（Windows）
+#define global VPAD_TAPSTAT	// タッチ情報も取得
+
+// モジュール include
+#netinclude "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/mod_vpad.as"/
+
+// -- mod_vpad.as の特殊設定 を一旦解除 (vpad_sample1.hsp内でも定義されるため)
+#undef VPAD_KB
+#undef VPAD_TAPSTAT
+
+// サンプルスクリプト
+#netinclude "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/vpad_sample1.hsp"/
+
+; 詳細は「https/ftp.vector.co.jp/66/31/3403/vpad103.zip!」フォルダの中にある
+; サンプルスクリプト本体を参照してください。
