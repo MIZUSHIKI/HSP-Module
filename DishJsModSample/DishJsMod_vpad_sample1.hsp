@@ -8,7 +8,7 @@ description = HSP3Dish.jsで仮想コントローラを使うことができます！
 */
 
 // データファイルが必要な場合抽出
-#addition "COPIED_FILES_vpad_sample1.as"
+#addition "COPIED_FILES_VPAD_SAMPLE1.AS"
 #ifndef __copied_files__vpad_sample1__
 	dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
 	folder = "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/"
@@ -29,17 +29,16 @@ description = HSP3Dish.jsで仮想コントローラを使うことができます！
 	loop
 	if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
 		script = "#define __copied_files__vpad_sample1__"
-		notesel script : notesave "COPIED_FILES_vpad_sample1.as"
+		notesel script : notesave "COPIED_FILES_VPAD_SAMPLE1.AS"
 		// hsp3dish.ini でゲームのサイズを指定
 		script = "; hsp3dish settings\nwx=320\nwy=480\nautoscale=0"
 		notesel script : notesave "hsp3dish.ini"
-		// モジュールとドキュメントを分かりやすくModuleフォルダに取り出す
+		// モジュールとドキュメントを分かりやすく「モジュール本体＋ドキュメント」フォルダに取り出す
 		exist folder+"mod_vpad.as"
 		if strsize != -1 {
-			dirlist dummy, "Module", 5 : if stat == 0 : mkdir "Module"
-			bcopy folder+"mod_vpad.as", "Module\\mod_vpad.as"
-			bcopy folder+"mod_vpad.txt", "Module\\mod_vpad.txt"
-			dialog "モジュールおよびドキュメントを\"Module\"フォルダにコピーしました"
+			dirlist dummy, "モジュール本体＋ドキュメント", 5 : if stat == 0 : mkdir "モジュール本体＋ドキュメント"
+			bcopy folder+"mod_vpad.as", "モジュール本体＋ドキュメント\\mod_vpad.as"
+			bcopy folder+"mod_vpad.txt", "モジュール本体＋ドキュメント\\mod_vpad.txt"
 		}
 	}
 #endif
@@ -49,16 +48,15 @@ description = HSP3Dish.jsで仮想コントローラを使うことができます！
 #include "ezlocal-dish-js.hsp"
 ezLocalJS
 
-// -- mod_vpad.as の特殊設定
+#if __hspver__ >= 14085  // HSP3.7beta5以上 - includeの使用が少し異なる(?)
+// -- mod_vpad.as の特殊設定 を書いてモジュール読み込み、その後解除
 #define global VPAD_KB		// キーボード有効（Windows）
 #define global VPAD_TAPSTAT	// タッチ情報も取得
-
 // モジュール include
 #netinclude "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/mod_vpad.as"/
-
-// -- mod_vpad.as の特殊設定 を一旦解除 (vpad_sample1.hsp内でも定義されるため)
 #undef VPAD_KB
 #undef VPAD_TAPSTAT
+#endif
 
 // サンプルスクリプト
 #netinclude "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/vpad_sample1.hsp"/
