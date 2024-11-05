@@ -5,9 +5,9 @@
 %dll ; モジュール名 
 mod_netinclude
 %ver ; バージョン 
-4.2
+4.2.1
 %date ; 更新日 
-2024/7/19
+2024/11/6
 %author ; 著作者 
 MIZUSHIKI
 
@@ -798,7 +798,9 @@ oMatches=0
 	if stat<0:return target
 	return retstr
 #global
-	execute@mod_netinclude
+	if dir_exe != "" {  ; HSP3Dish.jsのデバッグ実行を考慮
+		execute@mod_netinclude
+	}
 
 #else  ; ifdef _debug
 
