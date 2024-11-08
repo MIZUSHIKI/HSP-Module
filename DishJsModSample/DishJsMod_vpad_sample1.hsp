@@ -20,7 +20,7 @@ description = HSP3Dish.jsで仮想コントローラを使うことができます
 // データファイルが必要な場合抽出
 gosub *data_extraction
 
-if dir_exe!="" : dialog "このまま ezlocal-dish-js でHTML化してブラウザで開いてみてください",,"自動サンプル実行"
+if dir_exe!="" : dialog "このまま ezlocal-dish-jsでHTML化してブラウザまたはスマホで開いて下さい",,"自動サンプル実行"
 // ezlocal
 #include "hsp3dish.as"
 #include "ezlocal-dish-js.hsp"
