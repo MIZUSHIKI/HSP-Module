@@ -1,10 +1,10 @@
 /*
-DishJsMod_vpad_sample1.hsp
+DishJsMod_msgcnv_sample1.hsp
 
-modname = バーチャルコントローラVPAD
+modname = msgcnv（メッセージこんぶ）
 modurl = https://miecat.com/hsp/
 developer =  窓月らら(miecat)
-description = HSP3Dish.jsで仮想コントローラを使うことができます
+description = テキストを画像文字で描画。複数フォントも切り替えられ、様々なエフェクト処理も可能。
 */
 
 ;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
@@ -26,18 +26,21 @@ if dir_exe!="" : dialog "このまま ezlocal-dish-js でHTML化してブラウザで開いてみ
 #include "ezlocal-dish-js.hsp"
 ezLocalJS
 
-#if __hspver__ >= 14085  // HSP3.7beta5以上 - includeの仕様が少し異なる(?)
-// -- mod_vpad.as の特殊設定 を書いてモジュール読み込み、その後解除
-#define global VPAD_KB		// キーボード有効（Windows）
-#define global VPAD_TAPSTAT	// タッチ情報も取得
+#if __hspver__ >= 14085  // HSP3.7beta5以上 - includeの使用が少し異なる(?)
 // モジュール include
-#netinclude "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/mod_vpad.as"/
-#undef VPAD_KB
-#undef VPAD_TAPSTAT
+#netinclude "https/miecat.com/hsp/arc/msgcnv20b2.zip!/mod_msgcnv.as"/
 #endif
 
+// HSP3Dish.js上で実行するための細工 (Win32APIの機能を使用しない)
+#undef uselib
+#undef func
+#define func(%1,%2=0,%3=0) addition""
+#define CreateMutex(%1,%2,%3) dummy=""
+#define GetLastError dummy=""
+#define SetProcessDPIAware dummy=""
+
 // サンプルスクリプト
-#netinclude "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/vpad_sample1.hsp"/
+#netinclude "https/miecat.com/hsp/arc/msgcnv20b2.zip!/msgcnv_sample1.hsp"/
 
 ; 詳細は「https/ftp.vector.co.jp/66/31/3403/vpad103.zip!」フォルダの中にある
 ; サンプルスクリプト本体を参照してください。
@@ -45,40 +48,36 @@ ezLocalJS
 
 // データファイル抽出  */ 
 *data_extraction
-	#addition "COPIED_FILES_VPAD_SAMPLE1.AS"
-	#ifndef __copied_files__vpad_sample1__
+	#addition "COPIED_FILES_MSGCNV_SAMPLE1.AS"
+	#ifndef __copied_files__msgcnv_sample1__
+		// dataフォルダに抽出
 		dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
-		folder = "https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/"
-		file.0 = "mod_vpad.png"
-		file.1 = "vpad_sample.png"
-		file.2 = "vpad_dmy.wav"
-		file.3 = "vpad_eout.wav"
-		file.4 = "vpad_info.wav"
-		file.5 = "vpad_pdmg.wav"
-		file.6 = "vpad_pout.wav"
-		file.7 = "vpad_roll.wav"
-		file.8 = "vpad_shot.wav"
-		file.9 = "vpad_bgm.wav"
-		file.10= "vpad_bgm_w.wav"
-		repeat 11
+		folder = "https/miecat.com/hsp/arc/msgcnv20b2.zip!/"
+		file.0 = "msgcnv_sample1.dat"
+		file.1 = "black.png"
+		file.2 = "msgcnv_sample1.png"
+		file.3 = "zundamon.png"
+		file.4 = "se1.wav"
+		file.5 = "se2.wav"
+		repeat 6
 			exist folder+file(cnt)
 			if strsize != -1 : bcopy folder+file(cnt), "data\\"+getpath(folder+file(cnt),8) : else : false = 1
 		loop
 		// モジュールとドキュメントを分かりやすく「モジュール本体＋ドキュメント」フォルダに取り出す
 		dirlist dummy, "モジュール本体＋ドキュメント", 5 : if stat == 0 : mkdir "モジュール本体＋ドキュメント"
-		file.0 = "mod_vpad.as"
-		file.1 = "mod_vpad.txt"
-		repeat 2
+		file.0 = "mod_msgcnv.as"
+		file.1 = "msgcnv.exe"
+		file.2 = "msgcnv_testsrc.txt"
+		file.3 = "msgcnv.txt"
+		file.4 = "msgcnv.ini"
+		repeat 5
 			exist folder+file(cnt)
 			if strsize != -1 : bcopy folder+file(cnt), "モジュール本体＋ドキュメント\\"+getpath(folder+file(cnt),8) : else : false = 1
 		loop
+		exist folder+"hsp3dish.ini" : if strsize != -1 : bcopy folder+"hsp3dish.ini", "hsp3dish.ini" : else : false = 1
 		if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
-			script = "#define __copied_files__vpad_sample1__"
-			notesel script : notesave "COPIED_FILES_VPAD_SAMPLE1.AS"
-			// hsp3dish.ini でゲームのサイズを指定
-			script = "; hsp3dish settings\nwx=320\nwy=480\nautoscale=0"
-			notesel script : notesave "hsp3dish.ini"
-
+			script = "#define __copied_files__msgcnv_sample1__"
+			notesel script : notesave "COPIED_FILES_MSGCNV_SAMPLE1.AS"
 		}
 	#endif
 	return
