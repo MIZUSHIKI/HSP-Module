@@ -15,7 +15,7 @@ description = HSP3Dish.jsで仮想コントローラを使うことができます
 
 
 // 「ダウンロード失敗」が表示される場合はzipファイルのダウンロードURLが変更された可能性があります。
-// 変更後のURLを調べて https/miecat.com/hsp/arc/msgcnv20b2.zip!/ 部分を全て書き換えてください。
+// 変更後のURLを調べて https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/ 部分を全て書き換えてください。
 
 // データファイルが必要な場合抽出
 gosub *data_extraction
