@@ -1,21 +1,21 @@
 /*
-DishJsMod_msgcnv_sample1.hsp
+DishJsMod_picmes_test_01.hsp
 
-modname = msgcnv（メッセージこんぶ）
-modurl = https://miecat.com/hsp/
-developer =  窓月らら(miecat)
-description = テキストを画像文字で描画。複数フォント切り替え可能。エフェクト処理も可能で機能が豊富。
+modname = mod_picmes.as
+modurl = https://sites.google.com/site/simakuroneko/home/product/hsp3dish/mod_picmes
+developer = しまくろねこ
+description = テキストを画像文字で描画。複数フォント切り替え可能。使い方が直感的に分かりやすい。
 */
 
 ;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
 ;  モジュールの詳しい使い方や他のサンプルはモジュールに同梱されたものを参照ください。
 ;  
 ;  まずはモジュール頒布先のホームページ確認と最新版のモジュールzipファイルの入手から始めてください。
-;  https://miecat.com/hsp/
+;  https://sites.google.com/site/simakuroneko/home/product/hsp3dish/mod_picmes
 
 
 // 「ダウンロード失敗」が表示される場合はzipファイルのダウンロードURLが変更された可能性があります。
-// 変更後のURLを調べて https/miecat.com/hsp/arc/msgcnv20b2.zip!/ 部分を全て書き換えてください。
+// 変更後のURLを調べて https/hsp.tv/contest/hspcontest411.zip!/ 部分を全て書き換えてください。
 //
 // このスクリプトにサンプルが実行できないなどの不具合があった場合、
 // 決してモジュール作者様へ連絡をするのではなく下記を通じて登録者に報告をしてください。
@@ -32,56 +32,54 @@ ezLocalJS
 
 #if __hspver__ >= 14085  // HSP3.7beta5以降 - includeの使用が少し異なる(?)
 // モジュール include
-#netinclude "https/miecat.com/hsp/arc/msgcnv20b2.zip!/mod_msgcnv.as"/
+#netinclude "https/hsp.tv/contest/hspcontest411.zip!/mod_picmes.as"/
 #endif
 
-// HSP3Dish.js上で実行するための細工 (Win32APIの機能を使用しない)
-#undef uselib
-#undef func
-#define func(%1,%2=0,%3=0) addition""
-#define CreateMutex(%1,%2,%3) dummy=""
-#define GetLastError dummy=""
-#define SetProcessDPIAware dummy=""
-
 // サンプルスクリプト
-#netinclude "https/miecat.com/hsp/arc/msgcnv20b2.zip!/msgcnv_sample1.hsp"/
+#netinclude "https/hsp.tv/contest/hspcontest411.zip!/test_01.hsp"/
 
-; 詳細は「https/miecat.com/hsp/arc/msgcnv20b2.zip!」フォルダの中にある
+; 詳細は「https/hsp.tv/contest/hspcontest411.zip!」フォルダの中にある
 ; サンプルスクリプト本体を参照してください。
 
 
 // データファイル抽出  */ 
+dummy="":editorfolder="";未初期化対処
 *data_extraction
-	#addition "COPIED_FILES_MSGCNV_SAMPLE1.AS"
-	#ifndef __copied_files__msgcnv_sample1__
+	#addition "COPIED_FILES_PICMES_TEST_01.AS"
+	#ifndef __copied_files__picmes_test_01__
 		// dataフォルダに抽出
 		dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
-		folder = "https/miecat.com/hsp/arc/msgcnv20b2.zip!/"
-		file.0 = "msgcnv_sample1.dat"
-		file.1 = "black.png"
-		file.2 = "msgcnv_sample1.png"
-		file.3 = "zundamon.png"
-		file.4 = "se1.wav"
-		file.5 = "se2.wav"
-		repeat 6
+		folder = "https/hsp.tv/contest/hspcontest411.zip!/"
+		file.0 = "picmes_0.ini"
+		file.1 = "picmes_0.png"
+		repeat 2
 			exist folder+file(cnt)
 			if strsize != -1 : bcopy folder+file(cnt), "data\\"+getpath(folder+file(cnt),8) : else : false = 1
 		loop
 		// モジュールとドキュメントを分かりやすく「モジュール本体＋ドキュメント」フォルダに取り出す
 		dirlist dummy, "モジュール本体＋ドキュメント", 5 : if stat == 0 : mkdir "モジュール本体＋ドキュメント"
-		file.0 = "mod_msgcnv.as"
-		file.1 = "msgcnv.exe"
-		file.2 = "msgcnv_testsrc.txt"
-		file.3 = "msgcnv.txt"
-		file.4 = "msgcnv.ini"
-		repeat 5
+		file.0 = "mod_picmes.as"
+		file.1 = "ReadMe.txt"
+		exist folder+file.0 : if strsize == -1 : return
+		d_cur = dir_cur
+		chdir "https/hsp.tv/contest/hspcontest411.zip!"
+		dirlist editorFolder, "mod_picmes-Editor*", 5
+		if stat >= 1 {
+			getstr editorFolder, editorFolder
+			chdir d_cur : chdir "モジュール本体＋ドキュメント"
+			dirlist dummy, editorFolder, 5 : if stat == 0 : mkdir editorFolder
+			chdir d_cur
+			file.2 = editorFolder+"/mod_picmes-Editor.exe"
+			file.3 = editorFolder+"/ReadMe.txt"
+		}
+		foreach file
 			exist folder+file(cnt)
-			if strsize != -1 : bcopy folder+file(cnt), "モジュール本体＋ドキュメント\\"+getpath(folder+file(cnt),8) : else : false = 1
+			if strsize != -1 : bcopy folder+file(cnt), "モジュール本体＋ドキュメント\\"+file(cnt) : else : false = 1
 		loop
 		exist folder+"hsp3dish.ini" : if strsize != -1 : bcopy folder+"hsp3dish.ini", "hsp3dish.ini" : else : false = 1
 		if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
-			script = "#define __copied_files__msgcnv_sample1__"
-			notesel script : notesave "COPIED_FILES_MSGCNV_SAMPLE1.AS"
+			script = "#define __copied_files__picmes_test_01__"
+			notesel script : notesave "COPIED_FILES_PICMES_TEST_01.AS"
 		}
 	#endif
 	return

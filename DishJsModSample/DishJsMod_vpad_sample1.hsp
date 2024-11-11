@@ -4,7 +4,7 @@ DishJsMod_vpad_sample1.hsp
 modname = ƒo[ƒ`ƒƒƒ‹ƒRƒ“ƒgƒ[ƒ‰VPAD
 modurl = https://miecat.com/hsp/
 developer =  ‘‹Œ‚ç‚ç(miecat)
-description = HSP3Dish.js‚Å‰¼‘zƒRƒ“ƒgƒ[ƒ‰‚ğg‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚·
+description = HSP3Dish.js‚Å‰¼‘zƒRƒ“ƒgƒ[ƒ‰‚ğg‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚·B
 */
 
 ;  ‚±‚ÌƒXƒNƒŠƒvƒg‚Íƒ‚ƒWƒ…[ƒ‹‚ÌƒTƒ“ƒvƒ‹‚ğ©“®‚©‚ÂèŒy‚ÉÀs‚·‚é‚½‚ß‚Ì‚à‚Ì‚Å‚·B
@@ -16,6 +16,10 @@ description = HSP3Dish.js‚Å‰¼‘zƒRƒ“ƒgƒ[ƒ‰‚ğg‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚·
 
 // uƒ_ƒEƒ“ƒ[ƒh¸”sv‚ª•\¦‚³‚ê‚éê‡‚Ízipƒtƒ@ƒCƒ‹‚Ìƒ_ƒEƒ“ƒ[ƒhURL‚ª•ÏX‚³‚ê‚½‰Â”\«‚ª‚ ‚è‚Ü‚·B
 // •ÏXŒã‚ÌURL‚ğ’²‚×‚Ä https/ftp.vector.co.jp/66/31/3403/vpad103.zip!/ •”•ª‚ğ‘S‚Ä‘‚«Š·‚¦‚Ä‚­‚¾‚³‚¢B
+//
+// ‚±‚ÌƒXƒNƒŠƒvƒg‚ÉƒTƒ“ƒvƒ‹‚ªÀs‚Å‚«‚È‚¢‚È‚Ç‚Ì•s‹ï‡‚ª‚ ‚Á‚½ê‡A
+// Œˆ‚µ‚Äƒ‚ƒWƒ…[ƒ‹ìÒ—l‚Ö˜A—‚ğ‚·‚é‚Ì‚Å‚Í‚È‚­‰º‹L‚ğ’Ê‚¶‚Ä“o˜^Ò‚É•ñ‚ğ‚µ‚Ä‚­‚¾‚³‚¢B
+// https://github.com/MIZUSHIKI/HSP-Module/
 
 // ƒf[ƒ^ƒtƒ@ƒCƒ‹‚ª•K—v‚Èê‡’Šo
 gosub *data_extraction
@@ -26,7 +30,7 @@ if dir_exe!="" : dialog "‚±‚Ì‚Ü‚Ü ezlocal-dish-js‚ÅHTML‰»‚µ‚Äƒuƒ‰ƒEƒU‚Ü‚½‚ÍƒXƒ}ƒ
 #include "ezlocal-dish-js.hsp"
 ezLocalJS
 
-#if __hspver__ >= 14085  // HSP3.7beta5ˆÈã - include‚Ìd—l‚ª­‚µˆÙ‚È‚é(?)
+#if __hspver__ >= 14085  // HSP3.7beta5ˆÈ~ - include‚Ìd—l‚ª­‚µˆÙ‚È‚é(?)
 // -- mod_vpad.as ‚Ì“Áêİ’è ‚ğ‘‚¢‚Äƒ‚ƒWƒ…[ƒ‹“Ç‚İ‚İA‚»‚ÌŒã‰ğœ
 #define global VPAD_KB		// ƒL[ƒ{[ƒh—LŒøiWindowsj
 #define global VPAD_TAPSTAT	// ƒ^ƒbƒ`î•ñ‚àæ“¾
