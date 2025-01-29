@@ -4,7 +4,7 @@ DishJsMod_picmes_test_01.hsp
 modname = mod_picmes.as
 modurl = https://sites.google.com/site/simakuroneko/home/product/hsp3dish/mod_picmes
 developer = しまくろねこ
-description = テキストを画像文字で描画。複数フォント切り替え可能。使い方が直感的に分かりやすい。
+description = テキストを画像文字で描画。複数フォント切り替え可能。使い方が比較的わかりやすい。
 */
 
 ;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
@@ -37,12 +37,13 @@ ezLocalJS
 
 // サンプルスクリプト
 #netinclude "https/hsp.tv/contest/hspcontest411.zip!/test_01.hsp"/
+// */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
 
 ; 詳細は「https/hsp.tv/contest/hspcontest411.zip!」フォルダの中にある
 ; サンプルスクリプト本体を参照してください。
 
 
-// データファイル抽出  */ 
+// データファイル抽出
 dummy="":editorfolder="";未初期化対処
 *data_extraction
 	#addition "COPIED_FILES_PICMES_TEST_01.AS"

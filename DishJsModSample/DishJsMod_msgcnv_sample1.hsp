@@ -15,7 +15,7 @@ description = テキストを画像文字で描画。複数フォント切り替え可能。エフェクト処理
 
 
 // 「ダウンロード失敗」が表示される場合はzipファイルのダウンロードURLが変更された可能性があります。
-// 変更後のURLを調べて https/miecat.com/hsp/arc/msgcnv20b2.zip!/ 部分を全て書き換えてください。
+// 変更後のURLを調べて https/miecat.com/hsp/arc/msgcnv20b8.zip!/ 部分を全て書き換えてください。
 //
 // このスクリプトにサンプルが実行できないなどの不具合があった場合、
 // 決してモジュール作者様へ連絡をするのではなく下記を通じて登録者に報告をしてください。
@@ -32,7 +32,7 @@ ezLocalJS
 
 #if __hspver__ >= 14085  // HSP3.7beta5以降 - includeの使用が少し異なる(?)
 // モジュール include
-#netinclude "https/miecat.com/hsp/arc/msgcnv20b2.zip!/mod_msgcnv.as"/
+#netinclude "https/miecat.com/hsp/arc/msgcnv20b8.zip!/mod_msgcnv.as"/
 #endif
 
 // HSP3Dish.js上で実行するための細工 (Win32APIの機能を使用しない)
@@ -43,27 +43,34 @@ ezLocalJS
 #define GetLastError dummy=""
 #define SetProcessDPIAware dummy=""
 
-// サンプルスクリプト
-#netinclude "https/miecat.com/hsp/arc/msgcnv20b2.zip!/msgcnv_sample1.hsp"/
+// スマホのタップでページ送りさせるためstickを乗っ取る(redraw 0 はezlocal-dish-jsのmousex(y)ズレ補正[HSP3.7β9以前]をここでしているため)
+#undef stick
+#define global stick(%1) stick@hsp %1:redraw 0:if(wobj==0||mousex<95||646<mousex||mousey<442||480<mousey){if(%1&256){%1^=256:if(mousex<ginfo_sx/4){%1|=1}else:if(mousex>ginfo_sx*3/4){%1|=4}else:if(mousey<ginfo_sy/2){%1|=2}else{%1|=8}}}
 
-; 詳細は「https/miecat.com/hsp/arc/msgcnv20b2.zip!」フォルダの中にある
+// サンプルスクリプト
+#netinclude "https/miecat.com/hsp/arc/msgcnv20b8.zip!/msgcnv_sample1.hsp"/
+// */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
+
+; 詳細は「https/miecat.com/hsp/arc/msgcnv20b8.zip!」フォルダの中にある
 ; サンプルスクリプト本体を参照してください。
 
-
-// データファイル抽出  */ 
+// データファイル抽出
 *data_extraction
 	#addition "COPIED_FILES_MSGCNV_SAMPLE1.AS"
 	#ifndef __copied_files__msgcnv_sample1__
 		// dataフォルダに抽出
 		dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
-		folder = "https/miecat.com/hsp/arc/msgcnv20b2.zip!/"
+		folder = "https/miecat.com/hsp/arc/msgcnv20b8.zip!/"
 		file.0 = "msgcnv_sample1.dat"
-		file.1 = "black.png"
-		file.2 = "msgcnv_sample1.png"
-		file.3 = "zundamon.png"
-		file.4 = "se1.wav"
-		file.5 = "se2.wav"
-		repeat 6
+		file.1 = "arrow.png"
+		file.2 = "black.png"
+		file.3 = "msgcnv_sample1.png"
+		file.4 = "zundamon.png"
+		file.5 = "arrow.png"
+		file.6 = "se1.wav"
+		file.7 = "se2.wav"
+		file.8 = "se3.wav"
+		repeat 9
 			exist folder+file(cnt)
 			if strsize != -1 : bcopy folder+file(cnt), "data\\"+getpath(folder+file(cnt),8) : else : false = 1
 		loop
