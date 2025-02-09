@@ -7,6 +7,8 @@ developer =  ‘‹ŒŽ‚ç‚ç(miecat)
 description = HSP3Dish.js‚Å‰¼‘zƒRƒ“ƒgƒ[ƒ‰(ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh)‚ðŽg‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚·B
 */
 
+// ¦ HSP3.7ƒÀ10 ˆÈ~‚Å‚Ì‚Ý³‚µ‚­“®ì‚µ‚Ü‚·I
+
 ;  ‚±‚ÌƒXƒNƒŠƒvƒg‚Íƒ‚ƒWƒ…[ƒ‹‚ÌƒTƒ“ƒvƒ‹‚ðŽ©“®‚©‚ÂŽèŒy‚ÉŽÀs‚·‚é‚½‚ß‚Ì‚à‚Ì‚Å‚·B
 ;  ƒ‚ƒWƒ…[ƒ‹‚ÌÚ‚µ‚¢Žg‚¢•û‚â‘¼‚ÌƒTƒ“ƒvƒ‹‚Íƒ‚ƒWƒ…[ƒ‹‚É“¯«‚³‚ê‚½‚à‚Ì‚ðŽQÆ‚­‚¾‚³‚¢B
 ;  
@@ -19,7 +21,7 @@ description = HSP3Dish.js‚Å‰¼‘zƒRƒ“ƒgƒ[ƒ‰(ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh)‚ðŽg‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚
 //
 // ‚±‚ÌƒXƒNƒŠƒvƒg‚ÉƒTƒ“ƒvƒ‹‚ªŽÀs‚Å‚«‚È‚¢‚È‚Ç‚Ì•s‹ï‡‚ª‚ ‚Á‚½ê‡A
 // Œˆ‚µ‚Äƒ‚ƒWƒ…[ƒ‹ìŽÒ—l‚Ö˜A—‚ð‚·‚é‚Ì‚Å‚Í‚È‚­‰º‹L‚ð’Ê‚¶‚Ä“o˜^ŽÒ‚É•ñ‚ð‚µ‚Ä‚­‚¾‚³‚¢B
-// https://github.com/MIZUSHIKI/HSP-Module/
+// https://github.com/MIZUSHIKI/HSP-Module/ ‚Ü‚½‚Í suwa.mizushiki@gmail.com
 
 // ƒf[ƒ^ƒtƒ@ƒCƒ‹‚ª•K—v‚Èê‡’Šo
 gosub *data_extraction

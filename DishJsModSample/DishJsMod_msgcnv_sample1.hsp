@@ -19,7 +19,7 @@ description = ƒeƒLƒXƒg‚ğ‰æ‘œ•¶š‚Å•`‰æB•¡”ƒtƒHƒ“ƒgØ‚è‘Ö‚¦‰Â”\BƒGƒtƒFƒNƒgˆ—
 //
 // ‚±‚ÌƒXƒNƒŠƒvƒg‚ÉƒTƒ“ƒvƒ‹‚ªÀs‚Å‚«‚È‚¢‚È‚Ç‚Ì•s‹ï‡‚ª‚ ‚Á‚½ê‡A
 // Œˆ‚µ‚Äƒ‚ƒWƒ…[ƒ‹ìÒ—l‚Ö˜A—‚ğ‚·‚é‚Ì‚Å‚Í‚È‚­‰º‹L‚ğ’Ê‚¶‚Ä“o˜^Ò‚É•ñ‚ğ‚µ‚Ä‚­‚¾‚³‚¢B
-// https://github.com/MIZUSHIKI/HSP-Module/
+// https://github.com/MIZUSHIKI/HSP-Module/ ‚Ü‚½‚Í suwa.mizushiki@gmail.com
 
 // ƒf[ƒ^ƒtƒ@ƒCƒ‹‚ª•K—v‚Èê‡’Šo
 gosub *data_extraction
@@ -30,7 +30,7 @@ if dir_exe!="" : dialog "‚±‚Ì‚Ü‚Ü ezlocal-dish-js‚ÅHTML‰»‚µ‚Äƒuƒ‰ƒEƒU‚Ü‚½‚ÍƒXƒ}ƒ
 #include "ezlocal-dish-js.hsp"
 ezLocalJS
 
-#if __hspver__ >= 14085  // HSP3.7beta5ˆÈ~ - include‚Ìg—p‚ª­‚µˆÙ‚È‚é(?)
+#if __hspver__ >= 14085  // HSP3.7beta5ˆÈ~ - include‚Ìd—l‚ª­‚µˆÙ‚È‚é(?)
 // ƒ‚ƒWƒ…[ƒ‹ include
 #netinclude "https/miecat.com/hsp/arc/msgcnv20b8.zip!/mod_msgcnv.as"/
 #endif
@@ -43,7 +43,7 @@ ezLocalJS
 #define GetLastError dummy=""
 #define SetProcessDPIAware dummy=""
 
-// ƒXƒ}ƒz‚Ìƒ^ƒbƒv‚Åƒy[ƒW‘—‚è‚³‚¹‚é‚½‚ßstick‚ğæ‚Áæ‚é(redraw 0 ‚Íezlocal-dish-js‚Ìmousex(y)ƒYƒŒ•â³[HSP3.7ƒÀ9ˆÈ‘O]‚ğ‚±‚±‚Å‚µ‚Ä‚¢‚é‚½‚ß)
+// ƒXƒ}ƒz‚Ìƒ^ƒbƒv‚Åƒy[ƒW‘—‚è‚³‚¹‚é‚½‚ßstick‚ğæ‚Áæ‚é(redraw 0‚ğ“ü‚ê‚Ä‚¢‚é‚Ì‚Íezlocal-dish-js‚Ìmousex(y)ƒYƒŒ•â³[HSP3.7ƒÀ9ˆÈ‘O]‚ğ‚±‚±‚Å‚µ‚Ä‚¢‚é‚½‚ß)
 #undef stick
 #define global stick(%1) stick@hsp %1:redraw 0:if(wobj==0||mousex<95||646<mousex||mousey<442||480<mousey){if(%1&256){%1^=256:if(mousex<ginfo_sx/4){%1|=1}else:if(mousex>ginfo_sx*3/4){%1|=4}else:if(mousey<ginfo_sy/2){%1|=2}else{%1|=8}}}
 
@@ -85,7 +85,16 @@ ezLocalJS
 			exist folder+file(cnt)
 			if strsize != -1 : bcopy folder+file(cnt), "ƒ‚ƒWƒ…[ƒ‹–{‘Ì{ƒhƒLƒ…ƒƒ“ƒg\\"+getpath(folder+file(cnt),8) : else : false = 1
 		loop
-		exist folder+"hsp3dish.ini" : if strsize != -1 : bcopy folder+"hsp3dish.ini", "hsp3dish.ini" : else : false = 1
+		exist folder+"hsp3dish.ini"
+		if strsize != -1 {
+			bcopy folder+"hsp3dish.ini", "hsp3dish.ini" 
+			// ezlocal-dish-js ‚Ìİ’è nchkbox_landscapeFit ‚ğ•t‚¯‰Á‚¦‚Ä‰¡“|‚µ‘S‰æ–Ê•\¦‚Å‚«‚é‚æ‚¤‚É‚·‚é
+			notesel textIni : noteload "hsp3dish.ini"
+			textIni += "\n\n; ezlocal-dish-js settings\nchkbox_landscapeFit=1\nbutton_openOptions=1"
+			notesave "hsp3dish.ini" : noteunsel
+		} else {
+			false = 1
+		}
 		if false == 0 {  ; ‘S•”’Šo‚Å‚«‚Ä‚¢‚½‚çƒtƒ‰ƒO‚Æ‚È‚éƒtƒ@ƒCƒ‹‚ğì‚é
 			script = "#define __copied_files__msgcnv_sample1__"
 			notesel script : notesave "COPIED_FILES_MSGCNV_SAMPLE1.AS"

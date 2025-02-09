@@ -19,7 +19,7 @@ description = ƒeƒLƒXƒg‚ğ‰æ‘œ•¶š‚Å•`‰æB•¡”ƒtƒHƒ“ƒgØ‚è‘Ö‚¦‰Â”\Bg‚¢•û‚ª”äŠr“I
 //
 // ‚±‚ÌƒXƒNƒŠƒvƒg‚ÉƒTƒ“ƒvƒ‹‚ªÀs‚Å‚«‚È‚¢‚È‚Ç‚Ì•s‹ï‡‚ª‚ ‚Á‚½ê‡A
 // Œˆ‚µ‚Äƒ‚ƒWƒ…[ƒ‹ìÒ—l‚Ö˜A—‚ğ‚·‚é‚Ì‚Å‚Í‚È‚­‰º‹L‚ğ’Ê‚¶‚Ä“o˜^Ò‚É•ñ‚ğ‚µ‚Ä‚­‚¾‚³‚¢B
-// https://github.com/MIZUSHIKI/HSP-Module/
+// https://github.com/MIZUSHIKI/HSP-Module/ ‚Ü‚½‚Í suwa.mizushiki@gmail.com
 
 // ƒf[ƒ^ƒtƒ@ƒCƒ‹‚ª•K—v‚Èê‡’Šo
 gosub *data_extraction
@@ -30,7 +30,7 @@ if dir_exe!="" : dialog "‚±‚Ì‚Ü‚Ü ezlocal-dish-js‚ÅHTML‰»‚µ‚Äƒuƒ‰ƒEƒU‚Ü‚½‚ÍƒXƒ}ƒ
 #include "ezlocal-dish-js.hsp"
 ezLocalJS
 
-#if __hspver__ >= 14085  // HSP3.7beta5ˆÈ~ - include‚Ìg—p‚ª­‚µˆÙ‚È‚é(?)
+#if __hspver__ >= 14085  // HSP3.7beta5ˆÈ~ - include‚Ìd—l‚ª­‚µˆÙ‚È‚é(?)
 // ƒ‚ƒWƒ…[ƒ‹ include
 #netinclude "https/hsp.tv/contest/hspcontest411.zip!/mod_picmes.as"/
 #endif
