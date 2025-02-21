@@ -1,0 +1,66 @@
+/*
+DishJsMod_sample-smart_analog_3.hsp
+
+modname = mod_smart.as
+modurl = https://sites.google.com/site/simakuroneko/home/product/hsp3dish/mod_smart
+developer = しまくろねこ
+description = 様々なスマホ向け操作(ピンチ,ドラッグなど)を取得可能に。ここでは仮想アナログスティック２つ同時操作サンプルを紹介。
+*/
+
+;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
+;  モジュールの詳しい使い方や他のサンプルはモジュールに同梱されたものを参照ください。
+;  
+;  まずはモジュール頒布先のホームページ確認と最新版のモジュールzipファイルの入手から始めてください。
+;  https://sites.google.com/site/simakuroneko/home/product/hsp3dish/mod_smart
+
+
+// 「ダウンロード失敗」が表示される場合はzipファイルのダウンロードURLが変更された可能性があります。
+// 変更後のURLを調べて https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/ 部分を全て書き換えてください。
+//
+// このスクリプトにサンプルが実行できないなどの不具合があった場合、
+// 決してモジュール作者様へ連絡をするのではなく下記を通じて登録者に報告をしてください。
+// https://github.com/MIZUSHIKI/HSP-Module/ または suwa.mizushiki@gmail.com
+
+// データファイルが必要な場合抽出
+gosub *data_extraction
+
+if dir_exe!="" : dialog "このまま ezlocal-dish-jsでHTML化してブラウザまたはスマホで開いて下さい",,"自動サンプル実行"
+// ezlocal
+#include "hsp3dish.as"
+#include "ezlocal-dish-js.hsp"
+ezLocalJS
+
+#if __hspver__ >= 14085  // HSP3.7beta5以降 - includeの仕様が少し異なる(?)
+// モジュール include
+#netinclude "https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/mod_smart.as"/
+#endif
+
+// サンプルスクリプト
+#netinclude "https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/sample-smart_analog_3.hsp"/
+// */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
+
+; 詳細は「https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!」フォルダの中にある
+; サンプルスクリプト本体を参照してください。
+
+
+// データファイル抽出
+dummy="";未初期化対処
+*data_extraction
+	#addition "COPIED_FILES_SAMPLE_SMART_ANALOG_3.AS"
+	#ifndef __copied_files__sample_smart_analog_3__
+		// モジュールとドキュメントを分かりやすく「モジュール本体＋ドキュメント」フォルダに取り出す
+		dirlist dummy, "モジュール本体＋ドキュメント", 5 : if stat == 0 : mkdir "モジュール本体＋ドキュメント"
+		folder = "https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/"
+		file.0 = "mod_smart.as"
+		file.1 = "ReadMe.txt"
+		repeat 2
+			exist folder+file(cnt)
+			if strsize != -1 : bcopy folder+file(cnt), "モジュール本体＋ドキュメント\\"+file(cnt) : else : false = 1
+		loop
+		exist folder+"hsp3dish.ini" : if strsize != -1 : bcopy folder+"hsp3dish.ini", "hsp3dish.ini" : else : false = 1
+		if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
+			script = "#define __copied_files__sample_smart_analog_3__"
+			notesel script : notesave "COPIED_FILES_SAMPLE_SMART_ANALOG_3.AS"
+		}
+	#endif
+	return
