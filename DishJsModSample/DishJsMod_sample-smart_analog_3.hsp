@@ -4,7 +4,7 @@ DishJsMod_sample-smart_analog_3.hsp
 modname = mod_smart.as
 modurl = https://sites.google.com/site/simakuroneko/home/product/hsp3dish/mod_smart
 developer = しまくろねこ
-description = 様々なスマホ向け操作(ピンチ,ドラッグなど)を取得可能に。ここでは仮想アナログスティック２つ同時操作サンプルを紹介。
+description = 様々なスマホ向け操作(ダブルタップ,ドラッグ,ピンチ等)を取得。ここでは仮想アナログスティック２つ同時操作サンプルを紹介。
 */
 
 ;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
