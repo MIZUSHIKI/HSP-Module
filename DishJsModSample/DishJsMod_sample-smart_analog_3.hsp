@@ -57,7 +57,16 @@ dummy="";未初期化対処
 			exist folder+file(cnt)
 			if strsize != -1 : bcopy folder+file(cnt), "モジュール本体＋ドキュメント\\"+file(cnt) : else : false = 1
 		loop
-		exist folder+"hsp3dish.ini" : if strsize != -1 : bcopy folder+"hsp3dish.ini", "hsp3dish.ini" : else : false = 1
+		exist folder+"hsp3dish.ini"
+		if strsize != -1 {
+			bcopy folder+"hsp3dish.ini", "hsp3dish.ini" 
+			// ezlocal-dish-js の設定 nchkbox_landscapeFit を付け加えて横倒し全画面表示できるようにする
+			notesel textIni : noteload "hsp3dish.ini"
+			textIni += "\n\n; ezlocal-dish-js settings\nchkbox_landscapeFit=1\nbutton_openOptions=1"
+			notesave "hsp3dish.ini" : noteunsel
+		} else {
+			false = 1
+		}
 		if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
 			script = "#define __copied_files__sample_smart_analog_3__"
 			notesel script : notesave "COPIED_FILES_SAMPLE_SMART_ANALOG_3.AS"
