@@ -60,7 +60,7 @@ dummy="";未初期化対処
 		exist folder+"hsp3dish.ini"
 		if strsize != -1 {
 			bcopy folder+"hsp3dish.ini", "hsp3dish.ini" 
-			// ezlocal-dish-js の設定 nchkbox_landscapeFit を付け加えて横倒し全画面表示できるようにする
+			// ezlocal-dish-js の設定 chkbox_landscapeFit を付け加えて横倒し全画面表示できるようにする
 			notesel textIni : noteload "hsp3dish.ini"
 			textIni += "\n\n; ezlocal-dish-js settings\nchkbox_landscapeFit=1\nbutton_openOptions=1"
 			notesave "hsp3dish.ini" : noteunsel
