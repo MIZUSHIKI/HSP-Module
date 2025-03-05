@@ -1,0 +1,114 @@
+/*
+DishJsMod_mod_vpad_dish_sample.hsp
+
+modname = mod_vpad_dish.as
+modurl = https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
+developer = ze-na
+description = マルチタッチ対応VPADモジュール(公式mod_vpad.asの改良版)
+*/
+
+;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
+;  
+;  まずはモジュール頒布先(HSPTV!掲示板)での情報の確認から始めてください。
+;  ・掲示板ではWebDishサービスを利用したサンプルが案内されています。
+;  https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
+;  
+;  ■ mod_vpad_dish.as
+;  ・ベースモジュールはmod_vpad.as
+;  ・Dish限定モジュール化によるマルチタップ対応
+;  ・サムエリアによる複数ボタン押しへの対応
+;  ・ダブルパッド表示(A/W/D/S)対応(hspvpad_init p2=8)
+;  ・入力エリアの表示対応(hspvpad_init p2=64)
+
+// このスクリプトにサンプルが実行できないなどの不具合があった場合、
+// 決してモジュール作者様へ連絡をするのではなく下記を通じて登録者に報告をしてください。
+// https://github.com/MIZUSHIKI/HSP-Module/ または suwa.mizushiki@gmail.com
+
+// データファイルが必要な場合に揃える
+gosub *data_extraction
+
+if dir_exe!="" : dialog "このまま ezlocal-dish-jsでHTML化してブラウザまたはスマホで開いて下さい",,"自動サンプル実行"
+// ezlocal
+#include "hsp3dish.as"
+#include "ezlocal-dish-js.hsp"
+ezLocalJS
+
+// モジュール include
+#netinclude "https/hsp.tv/play/pforum.php？mode=all&num=103201#/mod_vpad_dish.as"/, , "<pre(?![\s\S]*<pre[\s\S]*?_vpad_dish[\s\S]*?</pre)>([\s\S]*?_vpad_dish[\s\S]*?)</pre", "EsD"
+
+// サンプルスクリプト : バーチャルパッドで画像を動かす
+#packopt xsize 1040
+#packopt ysize 480
+	hspvpad_init 0, 8+64         ; バーチャルパッドの初期化(ダブルパッド[8]+入力エリア表示[64])
+	celload "face.bmp"           ; 画像ファイル(顔)
+	face = stat                  ; 画像のIDを保存
+	celdiv stat, 64, 64, 32, 32  ; 画像素材の分割サイズと中心座標を設定
+	celload "hsptv_img.png"      ; 画像ファイル(りんごを含む画像)
+	tv_img = stat                ; 画像のIDを保存
+	celdiv stat, 64, 64, 32, 32  ; 画像素材の分割サイズと中心座標を設定
+
+	mx = ginfo_sx*3/4, ginfo_sx*1/4  ; X座標(顔, りんご)
+	my = ginfo_sy*2/5, ginfo_sy*2/5  ; Y座標(顔, りんご)
+	msp = 4                          ; スピード
+*main
+	stick key, $3C10F                ; キー入力
+	hspvpad_key key                  ; バーチャルパッドのキーを読み取る
+	
+	if key & 1 : mx.0 = mx.0 - msp   ; 顔の移動
+	if key & 4 : mx.0 = mx.0 + msp
+	if key & 2 : my.0 = my.0 - msp
+	if key & 8 : my.0 = my.0 + msp
+	
+	if key &  16384 : mx.1 = mx.1 - msp  ; りんごの移動
+	if key &  65536 : mx.1 = mx.1 + msp
+	if key &  32768 : my.1 = my.1 - msp
+	if key & 131072 : my.1 = my.1 + msp
+
+	redraw 0                    ; 描画始め
+	color 0,0,64 : boxf         ; 背景を消す
+
+	gmode 3,,,256               ; 画面コピーモード設定
+	pos mx.0, my.0              ; 表示位置の設定(顔)
+	celput face                 ; 画像コピー
+	pos mx.1, my.1              ; 表示位置の設定(りんご)
+	celput tv_img, 40           ; 画像コピー
+
+	hspvpad_put mykey           ; バーチャルパッドを表示する
+
+	color 255,255,255 : pos 50,0
+	mes "key(hex): " + strf("0x%08X", key)
+	redraw 1                    ; 描画終わり
+	await 20
+goto *main
+// */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
+
+
+// データファイル抽出
+*data_extraction
+	#addition "COPIED_FILES_MOD_VPAD_DISH_SAMPLE.AS"
+	#ifndef __copied_files__mod_vpad_dish_sample__
+		dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
+		files.0 = dir_exe+"\\sample\\game\\face.bmp"
+		files.1 = dir_tv+"vpad.png"
+		files.2 = dir_tv+"hsptv_img.png"
+		repeat 3
+			exist files.cnt
+			if strsize != -1 : bcopy files.cnt, "data\\"+getpath(files.cnt,8) : else : false = 1
+		loop
+		// モジュールとドキュメントを分かりやすく「モジュール本体」フォルダに取り出す
+		dirlist dummy, "モジュール本体", 5 : if stat == 0 : mkdir "モジュール本体"
+		files.0 = "https/hsp.tv/play/pforum.php？mode=all&num=103201#/mod_vpad_dish.as"
+		repeat 1
+			exist files.cnt
+			if strsize != -1 : bcopy files.cnt, "モジュール本体\\"+getpath(files.cnt,8) : else : false = 1
+		loop
+		if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
+			script = "#define __copied_files__mod_vpad_dish_sample__"
+			notesel script : notesave "COPIED_FILES_MOD_VPAD_DISH_SAMPLE.AS"
+			// hsp3dish.ini でゲームのサイズを指定
+			ini  = "; hsp3dish settings\nwx=1040\nwy=480\nautoscale=0"
+			ini += "\n\n; ezlocal-dish-js settings\nchkbox_landscapeFit=1\nbutton_openOptions=1"
+			notesel ini : notesave "hsp3dish.ini"
+		}
+	#endif
+	return
