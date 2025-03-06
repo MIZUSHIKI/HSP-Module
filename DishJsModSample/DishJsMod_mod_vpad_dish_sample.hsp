@@ -4,7 +4,7 @@ DishJsMod_mod_vpad_dish_sample.hsp
 modname = mod_vpad_dish.as
 modurl = https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
 developer = ze-na
-description = ƒ}ƒ‹ƒ`ƒ^ƒbƒ`‘Î‰VPADƒ‚ƒWƒ…[ƒ‹(Œö®mod_vpad.as‚Ì‰ü—Ç”Å)
+description = ƒ}ƒ‹ƒ`ƒ^ƒbƒ`‘Î‰VPADƒ‚ƒWƒ…[ƒ‹ (Œö®mod_vpad.as‚Ì‰ü—Ç”Å)
 */
 
 ;  ‚±‚ÌƒXƒNƒŠƒvƒg‚Íƒ‚ƒWƒ…[ƒ‹‚ÌƒTƒ“ƒvƒ‹‚ğ©“®‚©‚ÂèŒy‚ÉÀs‚·‚é‚½‚ß‚Ì‚à‚Ì‚Å‚·B
@@ -12,6 +12,8 @@ description = ƒ}ƒ‹ƒ`ƒ^ƒbƒ`‘Î‰VPADƒ‚ƒWƒ…[ƒ‹(Œö®mod_vpad.as‚Ì‰ü—Ç”Å)
 ;  ‚Ü‚¸‚Íƒ‚ƒWƒ…[ƒ‹”Ğ•zæ(HSPTV!Œf¦”Â)‚Å‚Ìî•ñ‚ÌŠm”F‚©‚çn‚ß‚Ä‚­‚¾‚³‚¢B
 ;  EŒf¦”Â‚Å‚ÍWebDishƒT[ƒrƒX‚ğ—˜—p‚µ‚½ƒTƒ“ƒvƒ‹‚ªˆÄ“à‚³‚ê‚Ä‚¢‚Ü‚·B
 ;  https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
+;  Eƒ‚ƒWƒ…[ƒ‹‚ÍGitHub‚É‚àŒöŠJ‚³‚ê‚Ü‚µ‚½B
+;  https://github.com/ze-n-a/mod_vpad_dish/blob/main/mod_vpad_dish.as
 ;  
 ;  ¡ mod_vpad_dish.as
 ;  Eƒx[ƒXƒ‚ƒWƒ…[ƒ‹‚Ímod_vpad.as
@@ -34,7 +36,7 @@ if dir_exe!="" : dialog "‚±‚Ì‚Ü‚Ü ezlocal-dish-js‚ÅHTML‰»‚µ‚Äƒuƒ‰ƒEƒU‚Ü‚½‚ÍƒXƒ}ƒ
 ezLocalJS
 
 // ƒ‚ƒWƒ…[ƒ‹ include
-#netinclude "https/hsp.tv/play/pforum.phpHmode=all&num=103201#/mod_vpad_dish.as"/, , "<pre(?![\s\S]*<pre[\s\S]*?_vpad_dish[\s\S]*?</pre)>([\s\S]*?_vpad_dish[\s\S]*?)</pre", "EsD"
+#netinclude "ze-n-a/mod_vpad_dish/main/mod_vpad_dish.as"/
 
 // ƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg : ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh‚Å‰æ‘œ‚ğ“®‚©‚·
 #packopt xsize 1040
@@ -95,9 +97,9 @@ goto *main
 			exist files.cnt
 			if strsize != -1 : bcopy files.cnt, "data\\"+getpath(files.cnt,8) : else : false = 1
 		loop
-		// ƒ‚ƒWƒ…[ƒ‹‚ÆƒhƒLƒ…ƒƒ“ƒg‚ğ•ª‚©‚è‚â‚·‚­uƒ‚ƒWƒ…[ƒ‹–{‘ÌvƒtƒHƒ‹ƒ_‚Éæ‚èo‚·
+		// •ª‚©‚è‚â‚·‚­uƒ‚ƒWƒ…[ƒ‹–{‘ÌvƒtƒHƒ‹ƒ_‚Éæ‚èo‚·
 		dirlist dummy, "ƒ‚ƒWƒ…[ƒ‹–{‘Ì", 5 : if stat == 0 : mkdir "ƒ‚ƒWƒ…[ƒ‹–{‘Ì"
-		files.0 = "https/hsp.tv/play/pforum.phpHmode=all&num=103201#/mod_vpad_dish.as"
+		files.0 = "ze-n-a/mod_vpad_dish/main/mod_vpad_dish.as"
 		repeat 1
 			exist files.cnt
 			if strsize != -1 : bcopy files.cnt, "ƒ‚ƒWƒ…[ƒ‹–{‘Ì\\"+getpath(files.cnt,8) : else : false = 1
