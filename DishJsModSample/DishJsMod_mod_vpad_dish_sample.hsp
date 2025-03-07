@@ -2,18 +2,25 @@
 DishJsMod_mod_vpad_dish_sample.hsp
 
 modname = mod_vpad_dish.as
-modurl = https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
+modurl = https://github.com/ze-n-a/mod_vpad_dish/tree/main/dish_v2
 developer = ze-na
 description = ƒ}ƒ‹ƒ`ƒ^ƒbƒ`‘Î‰VPADƒ‚ƒWƒ…[ƒ‹ (Œö®mod_vpad.as‚Ì‰ü—Ç”Å)
 */
 
+;  Œö®‚Ì mod_vpad.as ‚ÍAHSP3.7ƒÀ5 ‚©‚ç“±“ü‚³‚ê‚Ü‚µ‚½B
+;  ‚±‚Ìƒ‚ƒWƒ…[ƒ‹‚ÍŒö®‚Ì vpad.png ‚ğ—˜—p‚·‚é‚½‚ßAHSP3.7ƒÀ5ˆÈ~‚Å‚µ‚©“®ì‚µ‚Ü‚¹‚ñB
+#if __hspver__ < 0x3705
+	dialog "Œö®‚Ì mod_vpad.as ‚ÍAHSP3.7ƒÀ5 ‚©‚ç“±“ü‚³‚ê‚Ü‚µ‚½B\n‚±‚Ìƒ‚ƒWƒ…[ƒ‹‚ÍŒö®‘fŞ vpad.png ‚ğ—˜—p‚·‚é‚½‚ßAHSP3.7ƒÀ5ˆÈ~‚Å‚µ‚©“®ì‚µ‚Ü‚¹‚ñB",1
+	end
+#endif
+
 ;  ‚±‚ÌƒXƒNƒŠƒvƒg‚Íƒ‚ƒWƒ…[ƒ‹‚ÌƒTƒ“ƒvƒ‹‚ğ©“®‚©‚ÂèŒy‚ÉÀs‚·‚é‚½‚ß‚Ì‚à‚Ì‚Å‚·B
 ;  
 ;  ‚Ü‚¸‚Íƒ‚ƒWƒ…[ƒ‹”Ğ•zæ(HSPTV!Œf¦”Â)‚Å‚Ìî•ñ‚ÌŠm”F‚©‚çn‚ß‚Ä‚­‚¾‚³‚¢B
-;  EŒf¦”Â‚Å‚ÍWebDishƒT[ƒrƒX‚ğ—˜—p‚µ‚½ƒTƒ“ƒvƒ‹‚ªˆÄ“à‚³‚ê‚Ä‚¢‚Ü‚·B
+;  Eƒ‚ƒWƒ…[ƒ‹‚ÆƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg‚ÌÅV”Å‚ÍGitHub‚ÉŒöŠJ‚³‚ê‚Ä‚¢‚Ü‚·B
+;  https://github.com/ze-n-a/mod_vpad_dish/blob/main/dish_v2
+;  EŒf¦”Â‚Å‚Í’ˆÓ“_‚âŠJ”­ŒoˆÜ‚È‚Ç‚ÌƒRƒƒ“ƒg‚âWebDishƒT[ƒrƒX‚ğ—˜—p‚µ‚½ƒTƒ“ƒvƒ‹‚ªˆÄ“à‚³‚ê‚Ä‚¢‚Ü‚·B
 ;  https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
-;  Eƒ‚ƒWƒ…[ƒ‹‚ÍGitHub‚É‚àŒöŠJ‚³‚ê‚Ü‚µ‚½B
-;  https://github.com/ze-n-a/mod_vpad_dish/blob/main/mod_vpad_dish.as
 ;  
 ;  ¡ mod_vpad_dish.as
 ;  Eƒx[ƒXƒ‚ƒWƒ…[ƒ‹‚Ímod_vpad.as
@@ -35,53 +42,17 @@ if dir_exe!="" : dialog "‚±‚Ì‚Ü‚Ü ezlocal-dish-js‚ÅHTML‰»‚µ‚Äƒuƒ‰ƒEƒU‚Ü‚½‚ÍƒXƒ}ƒ
 #include "ezlocal-dish-js.hsp"
 ezLocalJS
 
-// ƒ‚ƒWƒ…[ƒ‹ include
-#netinclude "ze-n-a/mod_vpad_dish/main/mod_vpad_dish.as"/
+// ƒ‚ƒWƒ…[ƒ‹‚ğƒ_ƒEƒ“ƒ[ƒh‚·‚é‚½‚ß‚¾‚¯‚Ì‹Lq
+// -  ƒ‚ƒWƒ…[ƒ‹‚Ì#include‚ÍƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg“à‚É‹Lq‚³‚ê‚Ä‚¢‚Ü‚·
+#if 0
+#netinclude "ze-n-a/mod_vpad_dish/main/dish_v2/mod_vpad_dish.as"/
+#endif
 
-// ƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg : ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh‚Å‰æ‘œ‚ğ“®‚©‚·
-#packopt xsize 1040
-#packopt ysize 480
-	hspvpad_init 0, 8+64         ; ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh‚Ì‰Šú‰»(ƒ_ƒuƒ‹ƒpƒbƒh[8]+“ü—ÍƒGƒŠƒA•\¦[64])
-	celload "face.bmp"           ; ‰æ‘œƒtƒ@ƒCƒ‹(Šç)
-	face = stat                  ; ‰æ‘œ‚ÌID‚ğ•Û‘¶
-	celdiv stat, 64, 64, 32, 32  ; ‰æ‘œ‘fŞ‚Ì•ªŠ„ƒTƒCƒY‚Æ’†SÀ•W‚ğİ’è
-	celload "hsptv_img.png"      ; ‰æ‘œƒtƒ@ƒCƒ‹(‚è‚ñ‚²‚ğŠÜ‚Ş‰æ‘œ)
-	tv_img = stat                ; ‰æ‘œ‚ÌID‚ğ•Û‘¶
-	celdiv stat, 64, 64, 32, 32  ; ‰æ‘œ‘fŞ‚Ì•ªŠ„ƒTƒCƒY‚Æ’†SÀ•W‚ğİ’è
+// ƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg
+#netinclude "ze-n-a/mod_vpad_dish/main/dish_v2/vpadmove.hsp"/
+; - ƒTƒ“ƒvƒ‹ƒXƒNƒŠƒvƒg‚Ì“à—e‚Í ze-n-a/mod_vpad_dish/main/dish_v2 ƒtƒHƒ‹ƒ_‚© GitHub ‚©‚çQÆ‚µ‚Ä‚­‚¾‚³‚¢
+;   https://github.com/ze-n-a/mod_vpad_dish/blob/main/dish_v2/vpadmove.hsp
 
-	mx = ginfo_sx*3/4, ginfo_sx*1/4  ; XÀ•W(Šç, ‚è‚ñ‚²)
-	my = ginfo_sy*2/5, ginfo_sy*2/5  ; YÀ•W(Šç, ‚è‚ñ‚²)
-	msp = 4                          ; ƒXƒs[ƒh
-*main
-	stick key, $3C10F                ; ƒL[“ü—Í
-	hspvpad_key key                  ; ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh‚ÌƒL[‚ğ“Ç‚İæ‚é
-	
-	if key & 1 : mx.0 = mx.0 - msp   ; Šç‚ÌˆÚ“®
-	if key & 4 : mx.0 = mx.0 + msp
-	if key & 2 : my.0 = my.0 - msp
-	if key & 8 : my.0 = my.0 + msp
-	
-	if key &  16384 : mx.1 = mx.1 - msp  ; ‚è‚ñ‚²‚ÌˆÚ“®
-	if key &  65536 : mx.1 = mx.1 + msp
-	if key &  32768 : my.1 = my.1 - msp
-	if key & 131072 : my.1 = my.1 + msp
-
-	redraw 0                    ; •`‰æn‚ß
-	color 0,0,64 : boxf         ; ”wŒi‚ğÁ‚·
-
-	gmode 3,,,256               ; ‰æ–ÊƒRƒs[ƒ‚[ƒhİ’è
-	pos mx.0, my.0              ; •\¦ˆÊ’u‚Ìİ’è(Šç)
-	celput face                 ; ‰æ‘œƒRƒs[
-	pos mx.1, my.1              ; •\¦ˆÊ’u‚Ìİ’è(‚è‚ñ‚²)
-	celput tv_img, 40           ; ‰æ‘œƒRƒs[
-
-	hspvpad_put mykey           ; ƒo[ƒ`ƒƒƒ‹ƒpƒbƒh‚ğ•\¦‚·‚é
-
-	color 255,255,255 : pos 50,0
-	mes "key(hex): " + strf("0x%08X", key)
-	redraw 1                    ; •`‰æI‚í‚è
-	await 20
-goto *main
 // */ // © #netincludeƒCƒ“ƒNƒ‹[ƒhƒtƒ@ƒCƒ‹–³‚µ‚Ì‚Æ‚«‚ÌƒRƒƒ“ƒgƒAƒEƒg‚ğ‚±‚±‚Ü‚Å‚Æ‚·‚é
 
 
@@ -90,16 +61,15 @@ goto *main
 	#addition "COPIED_FILES_MOD_VPAD_DISH_SAMPLE.AS"
 	#ifndef __copied_files__mod_vpad_dish_sample__
 		dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
-		files.0 = dir_exe+"\\sample\\game\\face.bmp"
+		files.0 = dir_exe+"\\sample\\sprite\\testchr.png"
 		files.1 = dir_tv+"vpad.png"
-		files.2 = dir_tv+"hsptv_img.png"
-		repeat 3
+		repeat 2
 			exist files.cnt
 			if strsize != -1 : bcopy files.cnt, "data\\"+getpath(files.cnt,8) : else : false = 1
 		loop
 		// •ª‚©‚è‚â‚·‚­uƒ‚ƒWƒ…[ƒ‹–{‘ÌvƒtƒHƒ‹ƒ_‚Éæ‚èo‚·
 		dirlist dummy, "ƒ‚ƒWƒ…[ƒ‹–{‘Ì", 5 : if stat == 0 : mkdir "ƒ‚ƒWƒ…[ƒ‹–{‘Ì"
-		files.0 = "ze-n-a/mod_vpad_dish/main/mod_vpad_dish.as"
+		files.0 = "ze-n-a/mod_vpad_dish/main/dish_v2/mod_vpad_dish.as"
 		repeat 1
 			exist files.cnt
 			if strsize != -1 : bcopy files.cnt, "ƒ‚ƒWƒ…[ƒ‹–{‘Ì\\"+getpath(files.cnt,8) : else : false = 1
@@ -108,8 +78,7 @@ goto *main
 			script = "#define __copied_files__mod_vpad_dish_sample__"
 			notesel script : notesave "COPIED_FILES_MOD_VPAD_DISH_SAMPLE.AS"
 			// hsp3dish.ini ‚ÅƒQ[ƒ€‚ÌƒTƒCƒY‚ğw’è
-			ini  = "; hsp3dish settings\nwx=1040\nwy=480\nautoscale=0"
-			ini += "\n\n; ezlocal-dish-js settings\nchkbox_landscapeFit=1\nbutton_openOptions=1"
+			ini  = "; hsp3dish settings\nwx=640\nwy=640\nautoscale=0"
 			notesel ini : notesave "hsp3dish.ini"
 		}
 	#endif
