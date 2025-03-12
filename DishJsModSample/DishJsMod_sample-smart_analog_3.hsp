@@ -15,7 +15,7 @@ description = 様々なスマホ向け操作(ダブルタップ,ドラッグ,ピンチ等)を取得。ここで
 
 
 // 「ダウンロード失敗」が表示される場合はzipファイルのダウンロードURLが変更された可能性があります。
-// 変更後のURLを調べて https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/ 部分を全て書き換えてください。
+// 変更後のURLを調べて https/ftp.vector.co.jp/77/59/3403/mod_smart-42.zip!/ 部分を全て書き換えてください。
 //
 // このスクリプトにサンプルが実行できないなどの不具合があった場合、
 // 決してモジュール作者様へ連絡をするのではなく下記を通じて登録者に報告をしてください。
@@ -32,14 +32,14 @@ ezLocalJS
 
 #if __hspver__ >= 14085  // HSP3.7beta5以降 - includeの仕様が少し異なる(?)
 // モジュール include
-#netinclude "https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/mod_smart.as"/
+#netinclude "https/ftp.vector.co.jp/77/59/3403/mod_smart-42.zip!/mod_smart.as"/
 #endif
 
 // サンプルスクリプト
-#netinclude "https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/sample-smart_analog_3.hsp"/
+#netinclude "https/ftp.vector.co.jp/77/59/3403/mod_smart-42.zip!/sample-smart_analog_3.hsp"/
 // */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
 
-; 詳細は「https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!」フォルダの中にある
+; 詳細は「https/ftp.vector.co.jp/77/59/3403/mod_smart-42.zip!」フォルダの中にある
 ; サンプルスクリプト本体を参照してください。
 
 
@@ -50,7 +50,7 @@ dummy="";未初期化対処
 	#ifndef __copied_files__sample_smart_analog_3__
 		// モジュールとドキュメントを分かりやすく「モジュール本体＋ドキュメント」フォルダに取り出す
 		dirlist dummy, "モジュール本体＋ドキュメント", 5 : if stat == 0 : mkdir "モジュール本体＋ドキュメント"
-		folder = "https/ftp.vector.co.jp/76/40/3403/mod_smart-41.zip!/"
+		folder = "https/ftp.vector.co.jp/77/59/3403/mod_smart-42.zip!/"
 		file.0 = "mod_smart.as"
 		file.1 = "ReadMe.txt"
 		repeat 2
