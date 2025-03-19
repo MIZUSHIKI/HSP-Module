@@ -2,7 +2,7 @@
 DishJsMod_mod_vpad_dish_sample.hsp
 
 modname = mod_vpad_dish.as
-modurl = https://github.com/ze-n-a/mod_vpad_dish/tree/main/dish_v2
+modurl = https://github.com/ze-n-a/mod_vpad_dish/tree/main
 developer = ze-na
 description = マルチタッチ対応VPADモジュール (公式mod_vpad.asの改良版)
 */
@@ -18,7 +18,7 @@ description = マルチタッチ対応VPADモジュール (公式mod_vpad.asの改良版)
 ;  
 ;  まずはモジュール頒布先(HSPTV!掲示板)での情報の確認から始めてください。
 ;  ・モジュールとサンプルスクリプトの最新版はGitHubに公開されています。
-;  https://github.com/ze-n-a/mod_vpad_dish/blob/main/dish_v2
+;  https://github.com/ze-n-a/mod_vpad_dish/tree/main
 ;  ・掲示板では注意点や開発経緯などのコメントやWebDishサービスを利用したサンプルが案内されています。
 ;  https://hsp.tv/play/pforum.php?mode=all&num=103201#103203
 ;  
@@ -45,13 +45,13 @@ ezLocalJS
 // モジュールをダウンロードするためだけの記述
 // -  モジュールの#includeはサンプルスクリプト内に記述されています
 #if 0
-#netinclude "ze-n-a/mod_vpad_dish/main/dish_v2/mod_vpad_dish.as"/
+#netinclude "ze-n-a/mod_vpad_dish/main/mod_vpad_dish.as"/
 #endif
 
 // サンプルスクリプト
-#netinclude "ze-n-a/mod_vpad_dish/main/dish_v2/vpadmove.hsp"/
-; - サンプルスクリプトの内容は ze-n-a/mod_vpad_dish/main/dish_v2 フォルダか GitHub から参照してください
-;   https://github.com/ze-n-a/mod_vpad_dish/blob/main/dish_v2/vpadmove.hsp
+#netinclude "ze-n-a/mod_vpad_dish/main/vpadmove_webdish.hsp"/
+; - サンプルスクリプトの内容は ze-n-a/mod_vpad_dish/main フォルダか GitHub から参照してください
+;   https://github.com/ze-n-a/mod_vpad_dish/blob/main/vpadmove_webdish.hsp
 
 // */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
 
@@ -69,7 +69,7 @@ ezLocalJS
 		loop
 		// 分かりやすく「モジュール本体」フォルダに取り出す
 		dirlist dummy, "モジュール本体", 5 : if stat == 0 : mkdir "モジュール本体"
-		files.0 = "ze-n-a/mod_vpad_dish/main/dish_v2/mod_vpad_dish.as"
+		files.0 = "ze-n-a/mod_vpad_dish/main/mod_vpad_dish.as"
 		repeat 1
 			exist files.cnt
 			if strsize != -1 : bcopy files.cnt, "モジュール本体\\"+getpath(files.cnt,8) : else : false = 1
