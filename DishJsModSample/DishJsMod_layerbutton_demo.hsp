@@ -1,0 +1,74 @@
+/*
+DishJsMod_layerutton_demo.hsp
+
+modname = mod_layerbutton.hsp
+modurl = https://suwa.pupu.jp/HSP/index.html#modlaybtn
+developer =  MIZUSHIKI
+description = layerobj命令を利用して、ちょっとリッチなアニメーション付きボタンを比較的簡単に作成。
+*/
+
+;  このスクリプトはモジュールのサンプルを自動かつ手軽に実行するためのものです。
+;  モジュールの詳しい使い方や他のサンプルはモジュールに同梱されたものを参照ください。
+;  
+;  まずはモジュール頒布先のホームページ確認と最新版のモジュールzipファイルの入手から始めてください。
+;  https://suwa.pupu.jp/HSP/index.html#modlaybtn
+
+
+// 「ダウンロード失敗」が表示される場合はzipファイルのダウンロードURLが変更された可能性があります。
+// 変更後のURLを調べて https/suwa.pupu.jp/data/mod_layerbutton_v101.zip!/ 部分を全て書き換えてください。
+//
+// このスクリプトにサンプルが実行できないなどの不具合があった場合、
+// 決してモジュール作者様へ連絡をするのではなく下記を通じて登録者に報告をしてください。
+// https://github.com/MIZUSHIKI/HSP-Module/ または suwa.mizushiki@gmail.com
+
+// データファイルが必要な場合抽出
+gosub *data_extraction
+
+if dir_exe!="" : dialog "このまま ezlocal-dish-jsでHTML化してブラウザまたはスマホで開いて下さい",,"自動サンプル実行"
+// ezlocal
+#include "hsp3dish.as"
+#include "ezlocal-dish-js.hsp"
+ezLocalJS
+
+#if __hspver__ >= 14085  // HSP3.7beta5以降 - includeの仕様が少し異なる(?)
+// モジュール include
+#netinclude "https/suwa.pupu.jp/data/mod_layerbutton_v101.zip!/mod_layerbutton.hsp"/
+#endif
+
+// サンプルスクリプト
+#netinclude "https/suwa.pupu.jp/data/mod_layerbutton_v101.zip!/01 demo.hsp"/
+// */ // ← #netincludeインクルードファイル無しのときのコメントアウトをここまでとする
+
+; 詳細は「https/suwa.pupu.jp/data/mod_layerbutton_v101.zip!」フォルダの中にある
+; サンプルスクリプト本体を参照してください。
+
+// データファイル抽出
+*data_extraction
+	#addition "COPIED_FILES_LAYERBUTTON_DEMO.AS"
+	#ifndef __COPIED_FILES_LAYERBUTTON_DEMO__
+		// dataフォルダに抽出
+		dirlist dummy, "data", 5 : if stat == 0 : mkdir "data"
+		folder = "https/suwa.pupu.jp/data/mod_layerbutton_v101.zip!/"
+		file.0 = "data/03_01-btn.png"
+		file.1 = "data/icon.png"
+		repeat 2
+			exist folder+file(cnt)
+			if strsize != -1 : bcopy folder+file(cnt), "data\\"+getpath(folder+file(cnt),8) : else : false = 1
+		loop
+		// モジュールとドキュメントを分かりやすく「モジュール本体＋ドキュメント」フォルダに取り出す
+		dirlist dummy, "モジュール本体＋ドキュメント", 5 : if stat == 0 : mkdir "モジュール本体＋ドキュメント"
+		file.0 = "mod_layerbutton.hsp"
+		file.1 = "Readme.txt"
+		repeat 2
+			exist folder+file(cnt)
+			if strsize != -1 : bcopy folder+file(cnt), "モジュール本体＋ドキュメント\\"+getpath(folder+file(cnt),8) : else : false = 1
+		loop
+		// hsp3dish.ini作る
+		ini = "; hsp3dish settings\nwx=480\nwy=800\nautoscale=0"
+		notesel ini : notesave "hsp3dish.ini"
+		if false == 0 {  ; 全部抽出できていたらフラグとなるファイルを作る
+			script = "#define __COPIED_FILES_LAYERBUTTON_DEMO__"
+			notesel script : notesave "COPIED_FILES_LAYERBUTTON_DEMO.AS"
+		}
+	#endif
+	return
