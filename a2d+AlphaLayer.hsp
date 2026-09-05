@@ -1,7 +1,5 @@
-// 末尾に @ReadMe.txt, a2d+AlphaLayer.hs 付き
-
 //
-//	a2d+AlphaLayer.hsp - ver.2.4									by MIZUSHIKI
+//	a2d+AlphaLayer.hsp - ver.3.0									by MIZUSHIKI
 //
 #if __hspver__<=$3507
 #packopt manifest "usedAlphaLayer.manifest" ;HSP3.5用(3.5.1では効果なし)
@@ -11,7 +9,81 @@
 #endif
 
 #include "a2d.hsp"
+
+#ifndef __hsp64__
 #include "modclbk3.hsp"	// コールバック関数用モジュール
+#else
+;#include "mod_clbk64.hsp"	// コールバック関数用モジュール
+// mod_clbk64.hsp - ver.0.1
+#ifndef __mod_clbk64__
+#define __mod_clbk64__
+
+#module _mod_clbk64
+#uselib "kernel32.dll"
+#func VirtualProtect "VirtualProtect" var, int, int, var
+#uselib "msvcrt.dll"
+#cfunc malloc "malloc" int
+#func free "free" sptr
+
+#deffunc newclbk64 var clbkptr_, int _nArgs, label _lab
+	if inited == 0 {
+		inited = 1
+		lldim ptrtable, 1
+		
+		#const FUNCSIZE 116
+		
+		dim code_, FUNCSIZE/4
+		code_( 0) = $244C894C, $44894C20, $89481824, $48102454
+		code_( 4) = $08244C89, $38EC8348, $24448D48, $C0834838
+		code_( 8) = $11B94808, $11111111, $48111111, $B8480189
+		code_(12) = $22222222, $22222222, $3333B948, $33333333
+		code_(16) = $89483333, $44B84808, $44444444, $48444444
+		code_(20) = $20244489, $5555B948, $55555555, $54FF5555
+		code_(24) = $B8482024, $66666666, $66666666, $48008B48
+		code_(28) = $C338C483
+		
+		#const pLparam_i 35
+		#const pWparam_i 48
+		#const nArgs_i 58
+		#const call_i 71
+		#const lab_i 86
+		#const pStat_i 100
+
+		mref ctx, 68
+		pWparam = varptr(ctx) + 72
+		pLparam = varptr(ctx) + 80
+		pStat = varptr(ctx) + 1280
+		memcpy code_, pLparam, 8, pLparam_i, 0  ; [1] pLparam
+		memcpy code_, pWparam, 8, pWparam_i, 0  ; [2] pWparam
+		;memcpy code_, nArgs, 8, nArgs_i, 0  ; [3] 引数の数 (後で)
+		memcpy code_, ctx, 8, call_i, 432  ; [4] *HspFunc_call
+		;memcpy code_, lab, 8, lab_i, 0  ; [5] ラベルpc（後で）
+		memcpy code_, pStat, 8, pStat_i, 0  ; [6] pStat
+		old = 0  ; VirtualProtect用
+	}
+	
+	nArgs = int64(_nArgs)
+	lab = _lab
+	clbkptr_ = malloc(FUNCSIZE)
+	dupptr clbkfunc, clbkptr_, FUNCSIZE, 4
+	memcpy clbkfunc, code_, FUNCSIZE
+	memcpy clbkfunc, nArgs, 8, nArgs_i, 0  ; [3] 引数の数
+	memcpy clbkfunc, lab, 8, lab_i, 0  ; [5] ラベルpc
+	VirtualProtect clbkfunc, FUNCSIZE, $40, old  ; $40 = PAGE_EXECUTE_READWRITE
+	ptrtable(ptrmax) = clbkptr_
+	ptrmax++
+	return
+
+#deffunc modclbk_term onexit
+	repeat ptrmax
+		free ptrtable(cnt)
+	loop
+	ptrmax = 0
+	return
+#global
+#endif
+// /mod_clbk64.hsp - ver.0.1
+#endif
 
 #ifndef _init_@AlphaLayerMod
 
@@ -48,25 +120,31 @@ __manifest_kakunin__ ;
 #module AlphaLayerMod
 
 #uselib "USER32.dll"
-#func SetParent "SetParent" int,int
-#func GetWindowLong "GetWindowLongA" int,int
-#func SetWindowLong "SetWindowLongA" int,int,int
+#func SetParent "SetParent" sptr,sptr
+
+#ifndef __hsp64__
+#func GetWindowLong "GetWindowLongA" sptr,sptr
+#func SetWindowLong "SetWindowLongA" sptr,sptr,sptr
+#else  ; !__hsp64__
+#func GetWindowLong "GetWindowLongPtrA" sptr,sptr
+#func SetWindowLong "SetWindowLongPtrA" sptr,sptr,sptr
+#endif ; /__hsp64__
 #cfunc GetDC "GetDC" sptr
 #func ReleaseDC "ReleaseDC" sptr,sptr
-#func UpdateLayeredWindow "UpdateLayeredWindow" int,int,int,int,int,int,int,int,int
-#cfunc DefWindowProc "DefWindowProcA" int,int,int,int
+#func UpdateLayeredWindow "UpdateLayeredWindow" sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr
+#cfunc DefWindowProc "DefWindowProcA" sptr,sptr,sptr,sptr
 #func SetWindowPos "SetWindowPos" sptr,sptr,sptr,sptr,sptr,sptr,sptr
-#func SetActiveWindow "SetActiveWindow" int
-#func GetWindowRect "GetWindowRect" int, int
-#func ScreenToClient "ScreenToClient" int, int
-#func GetParent "GetParent" int
+#func SetActiveWindow "SetActiveWindow" sptr
+#func GetWindowRect "GetWindowRect" sptr, sptr
+#func ScreenToClient "ScreenToClient" sptr, sptr
+#func GetParent "GetParent" sptr
 #func FindWindowExA  "FindWindowExA" sptr,sptr,sptr,sptr
-#func GetWindowRgnBox "GetWindowRgnBox" int,int
-#func SetWindowRgn "SetWindowRgn" int,int,int
+#func GetWindowRgnBox "GetWindowRgnBox" sptr,sptr
+#func SetWindowRgn "SetWindowRgn" sptr,sptr,sptr
 #func RegisterClassEx "RegisterClassExA" sptr
 #func CreateWindowEx "CreateWindowExA" sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr
 #func DestroyWindow "DestroyWindow" sptr
-#cfunc IsWindowVisible "IsWindowVisible" int
+#cfunc IsWindowVisible "IsWindowVisible" sptr
 #func CallWindowProc "CallWindowProcA" sptr,sptr,sptr,sptr,sptr
 #func CallWindowProcW "CallWindowProcW" wptr,wptr,wptr,wptr,wptr
 
@@ -81,14 +159,14 @@ __manifest_kakunin__ ;
 #func DeleteDC "DeleteDC" sptr
 #func StretchDIBits "StretchDIBits" sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr,sptr
 #func DeleteObject "DeleteObject" sptr
-#func CreateRectRgn "CreateRectRgn" int,int,int,int
-#func GetStockObject "GetStockObject" int
+#func CreateRectRgn "CreateRectRgn" sptr,sptr,sptr,sptr
+#func GetStockObject "GetStockObject" sptr
 #uselib "gdiplus.dll"
-#func GdipGetPropertyItemSize "GdipGetPropertyItemSize" int,int,int
-#func GdipGetPropertyItem "GdipGetPropertyItem" int,int,int,int
-#func GdipImageGetFrameDimensionsList "GdipImageGetFrameDimensionsList" int,int,int
-#func GdipImageGetFrameCount "GdipImageGetFrameCount" int,int,int
-#func GdipImageSelectActiveFrame "GdipImageSelectActiveFrame" int,int,int
+#func GdipGetPropertyItemSize "GdipGetPropertyItemSize" sptr,sptr,sptr
+#func GdipGetPropertyItem "GdipGetPropertyItem" sptr,sptr,sptr,sptr
+#func GdipImageGetFrameDimensionsList "GdipImageGetFrameDimensionsList" sptr,sptr,sptr
+#func GdipImageGetFrameCount "GdipImageGetFrameCount" sptr,sptr,sptr
+#func GdipImageSelectActiveFrame "GdipImageSelectActiveFrame" sptr,sptr,sptr
 
 #define WS_POPUP          0x80000000
 #define WS_CHILD          0x40000000
@@ -130,20 +208,56 @@ __manifest_kakunin__ ;
 #define SWP_NOREPOSITION SWP_NOOWNERZORDER
 
 
+// HSP38対応のためのツール
+; 64bitで変数に8byte必要なとき
+#if __hspver__ >= 0x3801
+	#define ctype int3264(%1) (int64(%1))
+#else  // - if __hspver__ >= 0x3801
+	#define ctype int3264(%1) (%1)
+#endif // --if __hspver__ >= 0x3801
+; hsputf8のとき変数内の文字列をUTF-16(Wide文字)に変更
+#ifdef _hsputf8
+	#define WideIf_HspUtf8(%1) cnvstow %1,%1
+#else  // - ifdef _hsputf8
+	#define WideIf_HspUtf8(%1) dmy_i=0
+#endif // --ifdef _hsputf8
+; システム修正
+#if __hspver__ < 0x3800
+#undef int64
+#define int64 int
+#endif // --if __hspver__ < 0x3800
+; 構造体セット(64bitのポインタに対応するため)
+#define SetSTRUCT(%1,%2,%3) __member=%3:_SetSTRUCT %1,%2
+#deffunc local _SetSTRUCT array p1, var p2
+	if vartype(__member) == 8 {
+		p1.p2 = int((__member) & $FFFFFFFF), int((__member)>>32) : p2 += 2
+	}else {
+		p1.p2 = __member : p2 += 1
+	}
+	return 1
+
+// コールバック関数作成
+#ifndef __hsp64__
+	#define newclbk newclbk3
+#else
+	#define newclbk newclbk64
+#endif
+
 #deffunc _init_@AlphaLayerMod
 	dim rect, 4
 	dim rgnRect,4
 	winbmscr = 0
-	hwnds = 0
+	hwnds = int3264(0)
 	alphas = 0  ; UpdateLayeredWindowで指定したアルファ値を取得できる関数はないものか
 	wintypes = 0
 	_templabel = 0
-	oldprocs = 0
+	oldprocs = int3264(0)
+	clbk_proc = int3264(0)
 	st = 0
 	ctx = 0
 	size = 0
 	bitmapdata = 0
-	tmpimage = 0
+	tmpimage = int3264(0)
 	guid = 0
 	frames = 0
 	nsizedelay = 0
@@ -151,20 +265,20 @@ __manifest_kakunin__ ;
 
 	framess = 0
 	loopCounts = 0
-	lpDelay_GblAllocs = 0
+	lpDelay_GblAllocs = int3264(0)
 
 	dummyVal = 0
-	
+
+	// BITMAPINFO構造体 = BITMAPINFOHEADER(40byte) + bmiColors[1](4byte)
 	// BITMAPINFOHEADER構造体
-	dim BITMAPINFOHEADER, 10
+	dim BITMAPINFOHEADER, 11
 	BITMAPINFOHEADER(0) = 40				// biSize
 	;BITMAPINFOHEADER(1) = biWidth			// biWidth
 	;BITMAPINFOHEADER(2) = biHeight			// biHeight
 	BITMAPINFOHEADER(3) = 1 | (32 << 16)	// biPlanes & biBitCount
 	BITMAPINFOHEADER(4) = BI_RGB			// biCompression
 	// BITMAPINFO構造体
-	dim BITMAPINFO, 2
-	BITMAPINFO(0) = varptr(BITMAPINFOHEADER)	//メンバをもつ
+	pBITMAPINFO = varptr(BITMAPINFOHEADER)	// BITMAPINFO構造体としての先頭アドレス
 	// psize
 	dim psize,2
 	;psize(0) = biWidth
@@ -186,26 +300,44 @@ __manifest_kakunin__ ;
 	_dummyLabel_ = *__dummy__@AlphaLayerMod
 	
 	//ダミーの関数を定義
-	newclbk3 Proc, 4, *WndProc@AlphaLayerMod
+	newclbk Proc, 4, *WndProc@AlphaLayerMod
 
 	//-ウィンドウクラスの登録-----------------------------------------------------------//
 	ClassName = "alalLayer"
 	GetStockObject 2
 	hBrush = stat
-
-	dim wcex, 12
-	wcex.0 = 48
-	wcex.1 = 0
-	wcex.2 = Proc
-	wcex.3 = 0
-	wcex.4 = 0
-	wcex.5 = 0;g_hInstance
-	wcex.6 = 0;hIcon
-	wcex.7 = 0;hCursor
-	wcex.8 = hBrush
-	wcex.9 = 0
-	wcex.10= varptr(ClassName)
-	wcex.11= 0;hIcon
+#ifndef __hsp64__
+	#const WNDCLASSEXA_SIZE 48
+#else
+	#const WNDCLASSEXA_SIZE 80
+#endif
+	; dim wcex, 12
+	; wcex.0 = 48
+	; wcex.1 = 0
+	; wcex.2 = Proc
+	; wcex.3 = 0
+	; wcex.4 = 0
+	; wcex.5 = 0;g_hInstance
+	; wcex.6 = 0;hIcon
+	; wcex.7 = 0;hCursor
+	; wcex.8 = hBrush
+	; wcex.9 = 0
+	; wcex.10= varptr(ClassName)
+	; wcex.11= 0;hIcon
+	dim wcex, 20  ; 32bit: 12(48byte) → 64bit: 20(80byte)
+	i = 0
+	SetSTRUCT wcex, i, WNDCLASSEXA_SIZE
+	SetSTRUCT wcex, i, 0
+	SetSTRUCT wcex, i, Proc
+	SetSTRUCT wcex, i, 0
+	SetSTRUCT wcex, i, 0
+	SetSTRUCT wcex, i, int3264(0);g_hInstance
+	SetSTRUCT wcex, i, int3264(0);hIcon
+	SetSTRUCT wcex, i, int3264(0);hCursor
+	SetSTRUCT wcex, i, hBrush
+	SetSTRUCT wcex, i, int3264(0);
+	SetSTRUCT wcex, i, varptr(ClassName)
+	SetSTRUCT wcex, i, int3264(0);hIcon
 	
 	RegisterClassEx varptr(wcex)
 	//----------------------------------------------------------------------------------//
@@ -223,7 +355,7 @@ __manifest_kakunin__ ;
 		if imgValid@a2d ! 3 : frames = 1 : else : frames = framess(imgID@a2d)
 		; LockBits して bitmap image へのポインタを得る
 		rect@a2d = 0, 0, imgWidth@a2d, imgHeight@a2d * frames
-		dim BitmapData@a2d, 8
+		dim BitmapData@a2d, 8  ; 64bit=32byte
 		GdipBitmapLockBits@a2d imgImage@a2d, varptr(rect@a2d), 1, PixelFormat32bppPARGB, varptr(BitmapData@a2d)
 		;GdipBitmapUnlockBits@a2d imgImage@a2d, varptr(BitmapData@a2d)
 		ps = BitmapData@a2d(0) * BitmapData@a2d(1) * 4  ; Width * Height * ByPP
@@ -231,7 +363,14 @@ __manifest_kakunin__ ;
 			GdipBitmapUnlockBits@a2d imgImage@a2d, varptr(BitmapData@a2d)
 			return -1
 		}
-		dupptr pv, BitmapData@a2d(4), ps
+		#ifndef __hsp64__
+			dupptr pv, BitmapData@a2d(4), ps
+		#else
+			_tempPtr = int64(0)
+			memcpy _tempPtr, BitmapData@a2d, 8, 0, 16
+			dupptr pv, _tempPtr, ps
+		#endif
+
 		;開いたままにして
 		return 0
 	}
@@ -297,7 +436,12 @@ __manifest_kakunin__ ;
 		GdipGetPropertyItemSize tmpImage , 0x5101 , varptr(nSize);ループ数を格納するサイズを取得
 		sdim loopCount_ , nSize
 		GdipGetPropertyItem tmpImage , 0x5101 , nSize , varptr(loopCount_);ループ数を取得
-		loopCount = wpeek(loopCount_,16)
+		#ifndef __hsp64__
+			#const SIZEOF_PROPERTYITEM 16
+		#else
+			#const SIZEOF_PROPERTYITEM 24
+		#endif
+		loopCount = wpeek(loopCount_, SIZEOF_PROPERTYITEM)  ; PROPERTYITEM後に格納されている
 		//alCreateImage p1, w@a2d, h@a2d * frames	; 強制的に 32bpp にするために 2 pass でロード
 		; 有効化
 		alDeleteImage p1, 1	; Image ID 削除
@@ -309,11 +453,11 @@ __manifest_kakunin__ ;
 		imgHeight@a2d = h@a2d
 		framess(p1) = frames
 		loopCounts(p1) = loopCount
-		if length(lpDelay_GblAllocs) > p1 : if lpDelay_GblAllocs(p1) != 0 : GlobalFree lpDelay_GblAllocs(p1) : lpDelay_GblAllocs(p1) = 0
+		if length(lpDelay_GblAllocs) > p1 : if lpDelay_GblAllocs(p1) != 0 : GlobalFree lpDelay_GblAllocs(p1) : lpDelay_GblAllocs(p1) = int3264(0)
 		if frames > 1 {
 			lpDelay_GblAllocs(p1) = GlobalAlloc( $0/*GMEM_FIXED*/, nSizeDelay)
 			dupptr hMem, lpDelay_GblAllocs(p1), nSizeDelay, 4
-			memcpy hMem, Delay, nSizeDelay-16, 0, 16
+			memcpy hMem, Delay, nSizeDelay-SIZEOF_PROPERTYITEM, 0, SIZEOF_PROPERTYITEM
 			repeat nSizeDelay/4
 				hMem(cnt) *= 10  ; GIFは10ミリ秒単位なのでここで10倍してしまう
 			loop
@@ -393,16 +537,21 @@ __manifest_kakunin__ ;
 	
 // ウィンドウにアルファレイヤーを追加する
 #define global alalSetParent(%1,%2=-1,%3=0,%4=0,%5=0,%6=_dummyLabel_@AlphaLayerMod) _alalSetParent@AlphaLayerMod %1,%2,%3,%4,%5,%6
-#deffunc _alalSetParent@AlphaLayerMod int imageID, int haritukeID,  int hide, int posX, int posY, label clbkLabel
+#deffunc _alalSetParent@AlphaLayerMod int imageID, int64 haritukeID,  int hide, int posX, int posY, label clbkLabel
 
 	if imageID == haritukeID : return
 	if haritukeID < 0 {
 		//p2省略時：描画先ウィンドウ
 		mref winBMSCR, 96+ginfo_sel
-		haritukeHWND = winBMSCR(13)
+		#ifndef __hsp64__
+			haritukeHWND = winBMSCR(13)
+		#else
+			dupptr _haritukeHWND, varptr(winBMSCR)+22*4, 8, 8
+			haritukeHWND = _haritukeHWND
+		#endif
 	}else :if length(hwnds)>haritukeID {
 		//p2 ID：既存アルファレイヤーの子レイヤーにする
-		if hwnds(haritukeID) != 0 : haritukeHWND = hwnds(haritukeID) :else : return
+		if hwnds(int.haritukeID) != 0 : haritukeHWND = hwnds(int.haritukeID) :else : return  ; ここの int. は、HSP3.8beta1では必要だが、以降で不要になる模様
 	}else :if haritukeID < IMGS_MAX@a2d {
 		//上で引っかからなかったけど512未満なのは何かの間違いだから戻る
 		return
@@ -556,8 +705,12 @@ __manifest_kakunin__ ;
 		GetWindowLong hwnds(imageID), -4;	// ウィンドウプロシージャのアドレス取得
 		oldprocs(imageID) = stat
 	}
-	newclbk3 newproc, 4, *clbk@AlphaLayerMod;
-	SetWindowLong hwnds(imageID), -4, newproc;		// ウィンドウプロシージャの書き換え
+	
+	if clbk_proc == 0 {
+		// コールバック関数を作成
+		newclbk clbk_proc, 4, *clbk@AlphaLayerMod
+	}
+	SetWindowLong hwnds(imageID), -4, clbk_proc;		// ウィンドウプロシージャの書き換え
 	
 	GetWindowLong hwnds(imageID), GWL_EXSTYLE
 	SetWindowLong hwnds(imageID), GWL_EXSTYLE, stat | WS_EX_TRANSPARENT ^ WS_EX_TRANSPARENT
@@ -580,13 +733,17 @@ __manifest_kakunin__ ;
 	foreach oldprocs
 		if oldprocs(cnt)!=0 {
 			SetWindowLong hwnds(cnt), -4, oldprocs(cnt);		// ウィンドウプロシージャの書き換え
-			oldprocs(cnt) = 0
+			oldprocs(cnt) = int3264(0)
 		}
 	loop
 	return
 
 *clbk@AlphaLayerMod
+	#ifndef __hsp64__
 		dupptr msg, lparam, wparam*4, 4
+	#else
+		dupptr msg, lparam, wparam*8, 8
+	#endif
 		
 		_imageID = -1
 		foreach hwnds
@@ -600,11 +757,21 @@ __manifest_kakunin__ ;
 			if oldprocs(_imageID) != 0 {
 				mref st,64
 				st = msg(0)
-				mref ctx,68
-				ctx(8)  = msg(1);iParam
-				ctx(9)  = msg(2) ;wParam
-				ctx(10) = msg(3) ;lParam
-				ctx(201)= _imageID;hspctx.intwnd_id
+				#ifndef __hsp64__
+					mref ctx,68
+					ctx(8)  = msg(1) ;iParam
+					ctx(9)  = msg(2) ;wParam
+					ctx(10) = msg(3) ;lParam
+					ctx(201)= _imageID;hspctx.intwnd_id
+				#else  ; !__hsp64__
+					mref ctx,68
+					dupptr iwlparam, varptr(ctx) + 64, 8*3, 8
+					iwlparam(0) = msg(1) ;iParam
+					iwlparam(1) = msg(2) ;wParam
+					iwlparam(2) = msg(3) ;lParam
+					dupptr intwnd_id, varptr(ctx) + 1320, 4, 4
+					intwnd_id = _imageID
+				#endif ; /__hsp64__
 				gosub labels(_imageID)
 			}
 			if stat == -1 {
@@ -675,13 +842,12 @@ __manifest_kakunin__ ;
 	psize(1) = biHeight
 	poke pblend, 2, alphas(imageID)
 	
-
 	hdc_    = GetDC( hwnds(imageID) )
 	hMemDC  = CreateCompatibleDC(hdc_)
 	hBitmap = CreateCompatibleBitmap(hdc_, biWidth, biHeight)
 	ReleaseDC hwnds(imageID), hdc_
 	SelectObject hMemDC, hBitmap
-	StretchDIBits hMemDC, 0, 0, biWidth, biHeight, 0, al_height*(pp3+1) +1, al_width, -al_height, varptr(bitmapdata), BITMAPINFO, DIB_RGB_COLORS, SRCCOPY
+	StretchDIBits hMemDC, 0, 0, biWidth, biHeight, 0, al_height*(pp3+1) +1, al_width, -al_height, varptr(bitmapdata), pBITMAPINFO, DIB_RGB_COLORS, SRCCOPY
 	hdc_ = GetDC( hwnds(imageID) )
 	UpdateLayeredWindow hwnds(imageID), hdc_, 0, varptr(psize), hMemDC, varptr(pptSrc), 0, varptr(pblend), ULW_ALPHA	//layerBMSCR.4 == hdc
 	ReleaseDC hwnds(imageID), hdc_
@@ -1136,1117 +1302,3 @@ __manifest_kakunin__ ;
 
 _init_@AlphaLayerMod
 #endif
-
-/*
-
-// @ReadMe.txt //
-
-━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-モジュール名│a2d+AlphaLayer.hsp
-  バージョン│2.4
-        作者│MIZUSHIKI (mail:suwa.mizushiki@gmail.com)
-            │                                  Copyright(C) 2019-2024 MIZUSHIKI
-━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-■ 概要 ■
-￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
-Artlet2Dモジュール(a2d.hsp)の仮想イメージを用いて、アルファブレンド半透明 子ウィ
-ンドウを作ることができます。
-
-デフォルトではマウスクリック等のウィンドウメッセージを透過する仕様になっています
-が、コールバックを設定してサブクラス化し、ウィンドウメッセージを取得することも出
-来ます。
-
-
-■ 注意 ■
-￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
-・Windows 10 May 2020 Update(Ver.20H1)から非表示のウィンドウまたは非表示のレイヤ
-　ーに alalSetParent ,,1で非表示貼り付けをしても表示されてしまうことを確認しまし
-　た。
-　しかも、その状態はalalIsShownをしても非表示状態と認識されて0を返します。
-　なので、実際には見えているのにalalHideをしても消えません。
-　消すには一度alalShowを実行して、その後alalHideをしなければいけません。
-
-　Windows側の不具合に近いのではないかと思っているのですが、現状は注意して使って
-　いくしかない状態です。
-
-・Windows 8 以降でしか動作しません。
-　このモジュールを利用して作られた作品には「対応OS:Windows8以降」を記述願います。
-
-・開発環境は、HSP3.6β1以降を推奨。
-　デバッグ実行ランタイム(hsp3.exe)の改造が不要になります。
-
-
-■ 命令 / 関数 ■
-￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
-alalSetParent
-　Artlet2D仮想イメージをアルファレイヤー子ウィンドウとして描画先ウィンドウに貼り付ける
-alalWindow
-　Artlet2D仮想イメージを用いてレイヤードウィンドウを作成
-alalRedraw
-　アルファレイヤーにArtlet2D仮想イメージを再描画する
-alalCallback
-　アルファレイヤーのWindowsメッセージ割り込み指定
-alalShow
-　アルファレイヤー子ウィンドウを表示させる
-alalIsShown
-　アルファレイヤー子ウィンドウの表示状態を取得
-alalHide
-　アルファレイヤー子ウィンドウを非表示にする
-alalAlpha
-　アルファレイヤーの透明度を設定する
-alalWidth
-　アルファレイヤー子ウィンドウのサイズ・位置設定
-alalGetRect
-　アルファレイヤー子ウィンドウの左上・右下座標の取得
-alalZtop
-　アルファレイヤーをZオーダー（表示順序）の一番上に配置する
-alalZbottom
-　アルファレイヤーをZオーダー（表示順序）の一番下に配置する
-alalZnext
-　アルファレイヤーのZオーダー（表示順序）を指定したウィンドウの下に配置する
-alalWindow_SetTransparent
-　alalWindowで作成したレイヤードウィンドウのクリック透過モードを変更
-
-【Artlet2D拡張】
-alCreateImageByAnimationFile
-　アニメーション画像ファイルから仮想イメージを作成
-alGetFramesDelay
-　アニメーションのフレーム間の時間間隔を取得
-alGetFramesCount
-　アニメーションのフレーム数を取得
-alGetLoopCount
-　アニメーションのループ回数を取得
-
-
-■ 謝辞 ■
-￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
-参考：なたで様「レイヤードウィンドウ総合モジュール」
-　　https://www.natade.net/lang/hsp/
-　　(HSP | なたでラボ / モジュール )
-　ウィンドウの透過処理について、なたで様の「レイヤードウィンドウ総合モジュール」
-　を参考にさせて頂きました。ありがとうございます！
-
-参考：nori様「GIFアニメサンプルスクリプト」
-　　http://hsp.tv/play/pforum.php?mode=pastwch&num=75891
-　　(HSPTV!掲示板 / HSPでGIFアニメーションの再生)
-　GIFアニメーションの再生の仕方を参考にさせていただきました。
-　ありがとうございます！
-
-モジュール：ぷま様「バイナリサーチ(BM法) bsearch」
-　　http://hsp.tv/play/pforum.php?mode=pastwch&num=29717 （代替）
-　　(HSPTV!掲示板 / sdim,bload命令について)
-　非常に速い検索が可能になりました。ありがとうございます！
-
-
-■ 履歴
-￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
- version 2.4   2024/ 1/ 5
- ￣￣￣￣￣￣￣￣￣￣￣￣
- ・alCopyImageToImage/ImageToScreenが高さ省略時正しくコピーされないバグを修正。
- ・alalIsOnLayer関数が返り値を返さずエラーになることがあるバグを修正。
-
- version 2.3   2022/11/16
- ￣￣￣￣￣￣￣￣￣￣￣￣
- ・alalWindow,alalWindow_SetTransparent関数を追加。
- ・alalSetParent後のstatに子ウィンドウのウィンドウハンドルを格納するようにした。
- ・alCreateImageByAnimationFileで画像を縦に並べたPNGファイルでもアニメーションと
- 　して読み込みが可能になった。
- ・alalAlphaで透明度変更後にalalRedrawしても透明度を維持するようにした。
- ・重複コンパイル防止処理が機能していなかったバグを修正。
- ・終了時のウィンドウ破棄し忘れを修正。
- ・細かい箇所の変更と修正。
-
- version 2.2   2021/ 6/25
- ￣￣￣￣￣￣￣￣￣￣￣￣
- ・Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから発生したバグに対処。
- 　　非表示状態で作成しても表示されてしまう。(一度VISIBLE→非VISIBLE処理が必要)
- 　　非表示の子レイヤーに張り付けた孫レイヤーが見えてしまう。
- 　　　↑プログラムで回避必要。(詳細：alalSetParentのHelp参照)
- ・CallWindowProcが定義されていなかったバグを修正。
-
- version 2.1   2020/ 9/10
- ￣￣￣￣￣￣￣￣￣￣￣￣
- ・GIFアニメーションファイルの読み込みに対応。【Artlet2D拡張】
- 　　alCreateImageByAnimationFile
- 　　alGetFramesDelay
- 　　alGetFramesCount
- 　　alGetLoopCount
- ・alalIsShown関数を追加。
- ・A2DのImage ID１つにつきアルファレイヤー1つじゃなくても利用できる裏技を内包。 
- ・デバイスコンテキストが一部解放されていなかった問題を修正。
- ・未初期化変数の初期化処理を入れるよう修正。
- ・alalWidthでサイズを0以下にすると以降再表示できなくなるバグを修正。
-
- version 2.0   2020/ 6/ 6
- ￣￣￣￣￣￣￣￣￣￣￣￣
-  ・命令を全面見直し(HSPのウィンドウを使わず自力でウィンドウを生成)。
-
- version 1.1   2019/11/10
- ￣￣￣￣￣￣￣￣￣￣￣￣
-  ・HSP3.5 で動かなくなっていたバグを修正。
-
- version 1.0   2019/10/31
- ￣￣￣￣￣￣￣￣￣￣￣￣
-  ・リリース。
-
-
-┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳┳
-┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻┻
-
-// a2d+AlphaLayer.hs //
-;
-;	HSP help manager用 HELPソースファイル
-;	(先頭が「;」の行はコメントとして処理されます)
-;
-
-%type
-拡張命令
-%ver
-2.4
-%note
-a2d+AlphaLayer.hspをインクルードすること。
-対応OS：Windows 8 以降
-%dll
-a2d+AlphaLayer
-%date
-2022/11/16
-%author
-MIZUSHIKI
-%url
-http://suwa.pupu.jp/
-%port
-Win
-
-
-
-%index
-alalSetParent
-Artlet2D仮想イメージをアルファレイヤー子ウィンドウとして描画先ウィンドウに貼り付ける
-%group
-画面制御命令
-%prm
-p1, p2,p3,p4,p5,*label
-p1=0～        : Artlet2D仮想イメージID
-
-p2=-1～(-1)   : 貼り付け先の指定（省略(-1) = 描画先ウィンドウ, 0～ = 既に作ったアルファレイヤーのArtlet2D仮想イメージID）
-p3=0,1(0)     : 非表示張り付けフラグ(1 = 非表示)
-p4=0～(0) : ウィンドウの配置X
-p5=0～(0) : ウィンドウの配置Y
-*label    : alalCallbackで指定するラベル（省略で無視）
-
-%inst
-描画先ウィンドウに、指定したArtlet2D仮想イメージIDをアルファレイヤー子ウィンドウとして貼り付けます。
-
-貼り付けたアルファレイヤー子ウィンドウはマウスクリック等のメッセージが透過します。
-ウィンドウメッセージを取得したい場合は、alalCallback を利用してください。
-
-アルファレイヤーへ描画する基本手順は、以下のようになります。
-html{
-<u><b>アルファレイヤー描画/更新の手順</b></u><br>
-<ol>
-<li>alCreateImage等でArtlet2D仮想イメージを作る。</li>
-<li>Artlet2D仮想イメージ に書き込み。</li>
-<li><b>alalSetParent で貼り付け。</b></li>
-<li>Artlet2D仮想イメージの内容を更新。</li>
-<li>alalRedraw で貼り付け先のアルファレイヤー子ウィンドウに内容を反映。</li>
-</ol>
-}html
-　　　以降、4 ⇔ 5 を繰り返す。
-
-p2 以降を指定することで、既存アルファレイヤーの子アルファレイヤーとして張り付けたり、最初は非表示にしたり、一度にコールバック処理を指定したりすることができます。
-非表示で張り付けた場合はalalShowで表示できます。
-
-statにアルファレイヤー子ウィンドウのウィンドウハンドルが格納されます。
-
-【裏技】
-p1に512以上を指定するすることもできます。
-その場合、alalRedrawの2項目目を使用して指定したImage IDから512番以降のアルファレイヤーに画像を転送してください。
-
-p1を512以上にしたとき最初に作られるアルファレイヤーは特例として、現在alSelectImageで選択されているイメージIDのレイヤーサイズと画像になります。
-
-★ ！！注意！！ ★
-Windows 10 May 2020 Update(Ver.20H1)のアプデ辺りから動作がおかしくなってしまいました。
-非表示のウィンドウまたは既に作った非表示のアルファレイヤー子ウィンドウに新規のアルファレイヤー子ウィンドウを貼り付けた場合、本来新規の子ウィンドウは見えないはずなのですが表示されてしまうというバグ(?)が発生しています。
-一度、親とするウィンドウまたはアルファレイヤー子ウィンドウを表示状態のまま下層のレイヤーを作り、全て貼り付け終えた後に alalHide で[子レイヤー]を非表示にするという処置を行う必要があります。
-
-%sample
-#include "a2d+AlphaLayer.hsp"
-	// 背景
-	picload dir_tv+"sozai4.jpg"
-	// キャラ
-	alCreateImageByFile 0, dir_tv+"tamane_y2.png" ; 画像を読み込み
-	alalSetParent 0,,, 50,0 ; イメージID 0を描画先ウィンドウに貼り付け
-	stop
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-%index
-alalRedraw
-アルファレイヤーにArtlet2D仮想イメージを再描画する
-%group
-画面制御命令
-%prm
-p1, p2,p3
-p1=0～        : Artlet2D仮想イメージID
-
-p2=0～(-1)：貼り付け元Artlet2D仮想イメージID
-p3=0～(0) ：アニメーション画像読み込み時のフレーム番号
-
-%inst
-Artlet2D仮想イメージをアルファレイヤー子ウィンドウに反映します。
-
-アルファ値 込みの画像データ転送となります。
-
-html{
-<u><b>アルファレイヤー描画/更新の手順</b></u><br>
-<ol>
-<li>alCreateImage等でArtlet2D仮想イメージを作る。</li>
-<li>Artlet2D仮想イメージ に書き込み。</li>
-<li>alalSetParent で貼り付け。</li>
-<li>Artlet2D仮想イメージの内容を更新。</li>
-<li><b>alalRedraw で貼り付け先のアルファレイヤー子ウィンドウに内容を反映。</b></li>
-</ol>
-}html
-　　　以降、4 ⇔ 5 を繰り返す。
-
-p3には、alCreateImageByAnimationFile を使ってアニメーションGIF(TIFF)を読み込んだ場合に、アルファレイヤーに反映するフレームの番号を指定します。
-
-
-【裏技】
-alalSetParentのp1には512番以降を指定することもできます。
-alalRedrawのp2を利用することでArtlet2D仮想イメージIDと同じ番号にとらわれることのないアルファレイヤー画像の更新が行えます。
-
-%sample
-#include "a2d+AlphaLayer.hsp"
-
-	// キャラ素材ロード
-	alCreateImageByFile 0, dir_tv+"tamadot.png" ; 仮想イメージ(イメージID 0)
-	
-	// キャラ
-	alCreateImage 1, 64,64 ; 仮想イメージ(イメージID 1)を作って
-	alalSetParent 1,,, 100,380 ; イメージID 1を貼り付け。
-	
-	// キャラクターアニメーション：alCopyImageToImage と alalRedraw を繰り返す
-	repeat
-		alErase
-		alCopyImageToImage 0,1, 0,0,64,64, 64*(4+cnt\4),0 ; イメージID 0 から 1 へ 歩きモーション(1～4)をコピー
-		alalRedraw 1 ; イメージID 1 のアルファレイヤーを更新。
-		wait 50
-	loop
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-alCreateImageByAnimationFile
-
-
-%index
-alalCallback
-アルファレイヤーのWindowsメッセージ割り込み指定
-%group
-プログラム制御命令
-%prm
-p1,*label
-p1=0～ : Artlet2D仮想イメージID
-*label : ラベル名
-
-%inst
-アルファレイヤー子ウィンドウにウィンドウメッセージが送られたときに割り込みジャンプするラベルを指定します。
-
-この命令を使うと、アルファレイヤー子ウィンドウにコールバックをセットしてサブクラス化することができます。
-
-割り込みによりジャンプを行なった後はシステム変数iparam、wparam、lparamがセットされます。
-割り込みが発生したArtlet2D仮想イメージIDは、 ginfo(24)またはginfo_intidにより取得することができます。
-html{
-<table border="1" cellpadding="10">
-    <tr>
-      <th>割り込み要因</th>
-      <th>iparam</th>
-      <th>wparam</th>
-      <th>lparam</th>
-    </tr>
-    <tr>
-      <td>SetCallbackAlphaLayer</td>
-      <td>メッセージID</td>
-      <td>wParam</td>
-      <td>lParam</td>
-    </tr>
-  </table>
-}html
-
-システム変数iparamには、送信されたメッセージIDが代入されます。
-また、wparam,lparamはWindowsメッセージとして渡されたパラメータがそのまま格納されています。
-statには割り込みが発生したArtlet2D仮想イメージIDが持つアルファレイヤー子ウィンドウのウィンドウハンドルが格納されています。
-
-この機能を使うことで、アルファレイヤーがクリックされたりすることを検知できるようになります。
-
-また、ラベル先ではstopをしないで、必ずreturnしてください。
-waitもしてはダメです。
-
-基本的に、コールバックで受け取ったメッセージは DefWindowProc を使ってスルーしています。
-return -1 とすることで通常処理させることも可能です。(モジュール側でCallWindowProcします。)
-
-alalSetParent の第5引数でもメッセージ割り込みラベルの指定ができます。
-
-コールバックを解除するには、p2を省略した alalCallback を実行してください。
-
-html{
-<u><b>注意</b></u>
-}html
-マウスの通過でもラベルジャンプが行われ、wait/awaitの待機時間が無効化されてしまいます。
-timer_waiton/timer_awaiton を併用してください。
-（mod_TimerRepeat.hsp をインクルードすればwait/awaitの機能が上書きされます。）
-
-%sample
-#include "a2d+AlphaLayer.hsp"
-#include "mod_TimerRepeat.hsp"
-
-	// キャラ素材ロード
-	alCreateImageByFile 0, dir_tv+"tamadot.png"
-	
-	// キャラ
-	alCreateImage 1, 64,64 ; 仮想イメージ(イメージID 1)
-	alalSetParent 1,,, 100,380
-	alalCallback 1,*click
-	mes "珠音ちゃんをクリックしてみよう！"
-	
-	// alCopyImageToImage と alalRedraw を繰り返す
-	repeat
-		alErase
-		alCopyImageToImage 0,1, 0,0,64,64, 64*(4+cnt\4),0 ; 歩きモーション
-		alalRedraw 1
-		wait 50
-		if dame>0 {
-			while dame
-				dame = 0
-				wait 100
-			wend
-		}
-	loop
-	stop
-
-*click
-	switch iparam
-		case 0x0201 ;WM_LBUTTONDOWN
-			mes "痛っ！"
-			dame=1
-			alCopyImageToImage 0,1, 0,0,64,64, 64*1,0 ; ダメージモーション
-			alalRedraw 1
-		
-			alalGetRect 1, rect ; アルファレイヤー(ID 1)の位置を取得
-			alalWidth 1, ,, rect(0),rect(1)-20 ; アルファレイヤー(ID 1)の位置を移動
-			swbreak
-	swend
-	return
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-
-%index
-alalShow
-アルファレイヤー子ウィンドウを表示させる
-%group
-画面制御命令
-%prm
-p1
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-
-%inst
-非表示にしていたアルファレイヤー子ウィンドウを表示させます。
-
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-%index
-alalIsShown
-; 見出し を記入
-アルファレイヤー子ウィンドウが表示されているか取得
-
-%prm
-; パラメータリスト を記入
-(p1)
-; パラメータ説明文 を記入
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-
-%inst
-; 解説文 を記入
-アルファレイヤー子ウィンドウの表示状態を取得。
-　0 = 非表示
-　1 = 表示中
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-; 関連項目 を記入
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-%group
-; グループ を記入
-拡張入出力命令
-
-%index
-alalHide
-アルファレイヤー子ウィンドウを非表示にする
-%group
-画面制御命令
-%prm
-p1
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-
-%inst
-アルファレイヤー子ウィンドウを非表示にします。
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-%index
-alalAlpha
-アルファレイヤーの透明度を設定する
-
-%prm
-p1,p2
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-p2=0～255 : 透明度（0=透明）
-
-%inst
-アルファレイヤー子ウィンドウの透明度を設定します。
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-%group
-画面制御命令
-
-%index
-alalWidth
-アルファレイヤー子ウィンドウのサイズ・位置設定
-%group
-画面制御命令
-%prm
-p1, p2,p3, p4,p5, p6
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-p2=0～ : サイズX（1ドット単位）
-p3=0～ : サイズY（1ドット単位）
-p4=0～ : 親ウィンドウ上でのX座標（1ドット単位）
-p5=0～ : 親ウィンドウ上でのY座標（1ドット単位）
-p6=0～8(0) : サイズ、位置の基準点指定
-
-%inst
-アルファレイヤーのウィンドウサイズと表示位置を変更します。
-サイズは、最初にalalSetParentしたときのイメージサイズより大きくすることはできません。
-
-p2,p3およびp4,p5で変更したくない項目はそれぞれ省略してください。
-
-また、p6 でウィンドウの位置、サイズの基準点を設定できます。
-html{
-
-<table border="1" cellpadding="2">
-    <tr>
-      <th>指定値</th>
-      <th>基準点</th>
-    </tr>
-    <tr>
-      <td>0</td>
-      <td>左上</td>
-    </tr>
-    <tr>
-      <td>1</td>
-      <td>右上</td>
-    </tr>
-    <tr>
-      <td>2</td>
-      <td>右下</td>
-    </tr>
-    <tr>
-      <td>3</td>
-      <td>左下</td>
-    </tr>
-    <tr>
-      <td>4</td>
-      <td>中心</td>
-    </tr>
-    <tr>
-      <td>5</td>
-      <td>中央上</td>
-    </tr>
-    <tr>
-      <td>6</td>
-      <td>中央右</td>
-    </tr>
-    <tr>
-      <td>7</td>
-      <td>中央下</td>
-    </tr>
-    <tr>
-      <td>8</td>
-      <td>中央左</td>
-    </tr>
-  </table>
-}html
-例えば、p6=4 として p4,p5座標を省略、p2,p3サイズを小さくすると、中心を基点にその場でウィンドウサイズを小さくできます。
-
-【注意】
-実は、この命令によるウィンドウサイズの変更では、実際のウィンドウサイズの変更は行われず、リージョンによって見た目（表示範囲）の変更が行われます。
-そのおかげで、中央基点のサイズ変更等も違和感なく行えるようになっています。
-位置の指定も、リージョンを考慮した移動先を計算しているので、見た目の矩形がウィンドウサイズであるかのように考えて頂ければ良いです。
-
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-%index
-alalGetRect
-アルファレイヤー子ウィンドウの左上・右下座標の取得
-
-%prm
-p1,p2,p3
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-p2 : 変数名(Rect構造体)
-p3= : 基準とする座標系（親ウィンドウ、スクリーン座標、指定ウィンドウ）
-
-%inst
-p1で指定したウィンドウの座標を p2の変数に代入します。
-　p2 = 左上X,左上Y、右下X,右下Y
-
-alalWidthでウィンドウサイズを変更すると、実際のウィンドウサイズの変更は行われず、リージョンによる見た目（表示範囲）の変更が行われます。
-この命令は、リージョンを考慮した見た目の矩形の座標を取得します。
-
-p3で基準とする座標系を指定できます。
-html{
-<table border="1" cellpadding="5">
-    <tr>
-      <th>p3</th>
-      <th>座標系</th>
-    </tr>
-    <tr>
-      <td>省略</td>
-      <td>親ウィンドウの座標系</td>
-    </tr>
-    <tr>
-      <td>-1</td>
-      <td>スクリーン座標系</td>
-    </tr>
-    <tr>
-      <td>0～(Artlet2D仮想イメージID)</td>
-      <td>指定アルファレイヤー子ウィンドウの座標系</td>
-    </tr>
-  </table>
-}html
-
-アルファレイヤーの見た目（表示範囲）のリージョン矩形の座標が知りたい場合は、p3も自身のArtlet2D仮想イメージIDを指定することで取得できます。
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-%group
-拡張入出力命令
-
-%index
-alalZtop
-アルファレイヤーをZオーダー（表示順序）の一番上に配置する
-%group
-画面制御命令
-
-%prm
-p1
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-
-%inst
-複数のアルファレイヤーを使用している場合に使用。
-Zオーダー（表示順序）を一番上にします。
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-%index
-alalZbottom
-アルファレイヤーをZオーダー（表示順序）の一番下に配置する
-%group
-画面制御命令
-
-%prm
-p1
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-
-%inst
-複数のアルファレイヤーを使用している場合に使用。
-Zオーダー（表示順序）を一番下にします。
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-%index
-alalZnext
-アルファレイヤーのZオーダー（表示順序）を指定したウィンドウの下に配置する
-%group
-画面制御命令
-
-%prm
-p1,p2
-p1=0～ : Zオーダーを変更したいウィンドウID
-p2=0～ : Artlet2D仮想イメージID（このアルファレイヤーの下に配置される）
-
-%inst
-複数のアルファレイヤーを使用している場合に使用。
-Zオーダー（表示順序）を指定したウィンドウの下にします。
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-%index
-alCreateImageByAnimationFile
-; 見出し を記入
-GIF(TIFF)アニメーションファイルから仮想イメージを作成
-
-%prm
-; パラメータリスト を記入
-ID,"file"(, p3,p4,p5)
-; パラメータ説明文 を記入
-ID : Image ID
- "file" : 読み込みファイル名
-
-p3=1～(1) : フレーム分割数
-p4=0～(0) : ループ回数
-p5[省略可] : 配列変数（フレーム間の時間間隔[ミリ秒単位]）
-
-%inst
-; 解説文 を記入
-GIF(TIFF)アニメーションファイルを読み込んで仮想イメージを作成します。
-(APNG/WebPには対応していません。)
-
-基本仕様は alCreateImageByFile を参照してください。
-
-
-読み込んだImage IDにすべてのフレームが縦に並べてロードされます。
-ただし、alGetHeight()は1フレーム分の高さが返されます。
-
-特定のフレームをコピーしたいときは
-　alCopyImageToScreen 1,0, 100,100, alGetWidth(),alGetHeight(), 0,alGetHeight()*5
-等のようにコピー元の座標を特定フレーム分下側に指定してください。
-
-また、alalRedraw の描画更新では alalRedrawのp3 にフレーム番号を指定して表示させることができます。
-
----
-通常のPNGファイル等でも p3,p4,p5 を指定してアニメーション画面として読み込むことが出来るようになりました。
-画像ファイルは各コマ同じサイズのアニメーション画像を縦に並べた１つの画像として用意してください。
-p3 でフレーム数を指定するとそのコマ数のアニメーションとして画像を分割して読み込みます。
-p4,p5 は指定してもしなくてもアニメーションに影響を与えることはありませんが、alGetFramesCount、alGetFramesDelay でGIFファイルと同じように値を取得できるようになります。
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-; 関連項目 を記入
-alCreateImageByFile
-alGetFramesDelay
-alGetFramesCount
-alGetLoopCount
-alalRedraw
-
-
-%group
-; グループ を記入
-ファイル操作
-%index
-alalWindow
-Artlet2D仮想イメージを用いてレイヤードウィンドウを作成
-
-%group
-画面制御命令
-
-%prm
-p1, p2,p3,p4,p5
-p1=0～        : Artlet2D仮想イメージID
-p2=0～   : ウィンドウID
-p3=0～(0)     : 初期化する画面のオプション
-p4=0～(0) : ウィンドウの配置X
-p5=0～(0) : ウィンドウの配置Y
-
-
-%inst
-p1で指定したArtlet2D仮想イメージを持つレイヤードウィンドウを作成します。
-このレイヤードウィンドウはp2ウィンドウIDのbgscrで初期化されており、初期化画面サイズはalCreateImage等で作成されたときのサイズとなります。
-
-p3の初期化する画面オプションは、以下から選ぶことができます。
-
-+1 : 非表示
-+2 : ドラッグして移動可能
-+4 : クリック透過モード
-
-「+2」を指定した場合、画面内をクリックするとタイトルバーをクリックしたことと同じになります。
-「+4」を指定した場合、画面内をクリックしてもウィンドウの後ろ側をクリックしたことになります。
-クリック透過モードは alalWindow_SetTransparent で変更することができます。
-
-ウィンドウのアクティブ化や最前面化、表示非表示はgsel命令が使えます。
-ウィンドウ内容の変更は alalSetParent したときと同じで alalRedraw を使います。詳細は alalSetParent のヘルプを参照ください。
-
-このレイヤードウィンドウにはbuttonコントロールや他のアルファレイヤー子ウィンドウ等は載せることはできません。
-
-%sample
-#include "a2d+AlphaLayer.hsp"
-
-	alCreateImageByFile 0, dir_tv+"runner.png"
-	// レイヤードウィンドウを作成（p3=2でドラッグしてウィンドウを移動できます）
-	alalWindow 0,1, 2
-	gsel 1,2
-	stop
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-%index
-alalWindow_SetTransparent
-alalWindowで作成したレイヤードウィンドウのクリック透過モードを変更
-
-%group
-画面制御命令
-
-%prm
-p1,p2
-p1=0～ : Artlet2D仮想イメージID（レイヤードウィンドウ）
-p2=0,1 : クリック透過モード
-
-%inst
-alalWindowで作成したレイヤードウィンドウのクリック透過モードを変更します。
-0 : 解除
-1 : クリック透過モードにする
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-
-%index
-alalIsOnLayer
-マウスカーソルがアルファレイヤーの上に乗っているか取得
-
-%prm
-(p1)
-p1=0～ : Artlet2D仮想イメージID（アルファレイヤー子ウィンドウ）
-
-%inst
-マウスカーソルがアルファレイヤー子ウィンドウの上に乗っているかどうかを取得。
-　0 = 乗っていない
-　1 = 乗っている
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-alalSetParent
-alalWindow
-alalRedraw
-alalCallback
-alalShow
-alalIsShown
-alalHide
-alalAlpha
-alalWidth
-alalGetRect
-alalZtop
-alalZbottom
-alalZnext
-alalIsOnLayer
-alalWindow_SetTransparent
-
-
-%group
-拡張入出力命令
-
-%index
-alGetFramesDelay
-; 見出し を記入
-仮想イメージに読み込んだGIF(TIFF)アニメのフレーム間の時間間隔を取得
-
-%prm
-; パラメータリスト を記入
-p1
-; パラメータ説明文 を記入
-p1 : 変数名(1次元配列)
-
-%inst
-; 解説文 を記入
-現在選択されている仮想イメージがalCreateImageByAnimationFile によってGIF(TIFF)アニメを読み込んだ仮想イメージの場合、フレーム間の時間間隔を取得します。
-時間の単位はミリ秒です。
-
-p1変数は、フレーム数分の要素を持った一次元配列変数となります。
-
-システム変数statにフレーム数(配列の要素数)が入ります。
-GIF(TIFF)アニメを読み込んでいない通常の仮想イメージの場合、statは0となります。
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-; 関連項目 を記入
-alCreateImageByAnimationFile
-alGetFramesCount
-alGetLoopCount
-
-%group
-; グループ を記入
-拡張入出力命令
-
-%index
-alGetFramesCount
-; 見出し を記入
-仮想イメージに読み込んだGIF(TIFF)アニメのフレーム数を取得
-
-%prm
-; パラメータリスト を記入
-()
-; パラメータ説明文 を記入
-
-%inst
-; 解説文 を記入
-現在選択されている仮想イメージがalCreateImageByAnimationFile によってGIF(TIFF)アニメを読み込んだ仮想イメージの場合、フレーム数を取得します。
-
-GIF(TIFF)アニメを読み込んでいない通常の仮想イメージの場合は、1を返します。
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-; 関連項目 を記入
-alCreateImageByAnimationFile
-alGetFramesDelay
-alGetLoopCount
-
-%group
-; グループ を記入
-拡張入出力命令
-%index
-alGetLoopCount
-; 見出し を記入
-仮想イメージに読み込んだGIF(TIFF)アニメのループ回数を取得
-
-%prm
-; パラメータリスト を記入
-()
-; パラメータ説明文 を記入
-
-%inst
-; 解説文 を記入
-現在選択されている仮想イメージがalCreateImageByAnimationFile によってGIF(TIFF)アニメを読み込んだ仮想イメージの場合、ループ回数を取得します。
-
-0 の場合、無限ループをあらわしています。
-
-GIF(TIFF)アニメを読み込んでいない通常の仮想イメージの場合は、-1を返します。
-
-%sample
-; サンプルスクリプト を記入
-
-%href
-; 関連項目 を記入
-
-alCreateImageByAnimationFile
-alGetFramesDelay
-alGetFramesCount
-
-%group
-; グループ を記入
-拡張入出力命令
-
-*/
