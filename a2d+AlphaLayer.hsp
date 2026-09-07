@@ -1,5 +1,5 @@
 //
-//	a2d+AlphaLayer.hsp - ver.3.0									by MIZUSHIKI
+//	a2d+AlphaLayer.hsp - ver.3.0.1									by MIZUSHIKI
 //
 #if __hspver__<=$3507
 #packopt manifest "usedAlphaLayer.manifest" ;HSP3.5用(3.5.1では効果なし)
@@ -207,6 +207,8 @@ __manifest_kakunin__ ;
 #define SWP_DRAWFRAME SWP_FRAMECHANGED
 #define SWP_NOREPOSITION SWP_NOOWNERZORDER
 
+// 未初期化変数警告の対策
+__member = 0
 
 // HSP38対応のためのツール
 ; 64bitで変数に8byte必要なとき
@@ -247,6 +249,7 @@ __manifest_kakunin__ ;
 	dim rect, 4
 	dim rgnRect,4
 	winbmscr = 0
+	bmscr = 0
 	hwnds = int3264(0)
 	alphas = 0  ; UpdateLayeredWindowで指定したアルファ値を取得できる関数はないものか
 	wintypes = 0
@@ -500,7 +503,7 @@ __manifest_kakunin__ ;
 	
 
 		GdipDisposeImage@a2d tmpImage
-		tmpImage = 0
+		tmpImage = int3264(0)
 		return 0
 	}
 	return -1
@@ -723,7 +726,7 @@ __manifest_kakunin__ ;
 	if length(oldprocs)>imageID {
 		if oldprocs(imageID) != 0 {
 			SetWindowLong hwnds(imageID), -4, oldprocs(imageID);		// ウィンドウプロシージャの書き換え
-			oldprocs(imageID) = 0
+			oldprocs(imageID) = int3264(0)
 		}
 	}
 	GetWindowLong hwnds(imageID), GWL_EXSTYLE
@@ -1137,7 +1140,7 @@ __manifest_kakunin__ ;
 		if hwnds(cnt) == 0 : continue
 		SetWindowPos hwnds(cnt), 0, 0,0,0,0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW
 		SetParent hwnds(cnt),0
-		if wintypes(imageID) == 0 : DestroyWindow hwnds(cnt)
+		if wintypes(cnt) == 0 : DestroyWindow hwnds(cnt)
 	loop
 	repeat length(lpDelay_GblAllocs)
 		if lpDelay_GblAllocs(cnt) == 0 : continue
