@@ -19,7 +19,7 @@
 #endif
 
 //
-//	mod_TimerRepeat.hsp - ver.3.0									by MIZUSHIKI
+//	mod_TimerRepeat.hsp - ver.3.0.1									by MIZUSHIKI
 //
 #ifndef timer_repeat
 
@@ -92,7 +92,7 @@
 	#ifndef __hsp64__
 		return _timeGetTime@modTimerRepeat()
 	#else
-		return int(_timeGetTime@modTimerRepeat())
+		return int._timeGetTime@modTimerRepeat()  ; ここの int. は、HSP3.8beta1では必要だが、以降で不要になる模様
 	#endif
 #else
 	getreq time24, SYSREQ_TIMER
@@ -218,7 +218,7 @@
 		loop
 		if index=0 :return
 	}else {
-		index = v
+		index = int.v  ; ここの int. は、HSP3.8beta1では必要だが、以降で不要になる模様
 		if index = 0 :return
 	}
 	if length(labels)<=index :return
@@ -265,7 +265,7 @@
 		loop
 		if index=0 :return
 	}else {
-		index = v
+		index = int.v  ; ここの int. は、HSP3.8beta1では必要だが、以降で不要になる模様
 		if index = 0 :return
 	}
 	if length(labels)<=index :return
