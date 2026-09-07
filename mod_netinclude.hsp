@@ -5,9 +5,9 @@
 %dll ; モジュール名 
 mod_netinclude
 %ver ; バージョン 
-4.2.1
+5.0
 %date ; 更新日 
-2024/11/6
+2026/9/6
 %author ; 著作者 
 MIZUSHIKI
 
@@ -24,17 +24,13 @@ MIZUSHIKI
 
 #module mod_netinclude
 
-#uselib "hspext.dll"
-#func fxren fxren 5
-#if __hspver__ < 14081  ; 0x3701未満
-#func pipeexec pipeexec 5
+#include "hspext.as"
+
+#ifdef __hsp64__
+	#uselib "hspinet_64.dll"
 #else
-#func pipeexec pipeexec $202
+	#uselib "hspinet.dll"
 #endif
-#func pipeget pipeget $83
-#func dirlist2 dirlist2 5
-#func dirlist2h dirlist2h 0
-#uselib "hspinet.dll"
 #func netinit netinit 0
 #func netexec netexec 1
 #func neturl neturl 6
@@ -44,14 +40,20 @@ MIZUSHIKI
 #func netrequest_get netrequest_get $202
 #func urlencode urlencode $202
 #func nkfcnv nkfcnv $202
-#cfunc netgetv_requestsize "_netgetv_requestsize@0"	// 受信サイズ
+#func nkfguess nkfguess $202
+#ifdef __hsp64__
+	#cfunc netgetv_requestsize "netgetv_requestsize"	// 受信サイズ
+#else
+	#cfunc netgetv_requestsize "_netgetv_requestsize@0"	// 受信サイズ
+#endif
 #uselib "kernel32.dll"
 #func GetCommandLine "GetCommandLineA"
 #uselib "shlwapi.dll"
 #func PathIsDirectory "PathIsDirectoryA" sptr
 #define NETMOD_PHPFILE "https://timetag.main.jp/HSP3NetModules/netmod.php"
 
-// 実行
+
+// 実行 - netinclude処理することが確定するまでなるべく処理は軽くしたい
 #deffunc execute@mod_netinclude
 	// initialize
 	_startregexp  ; モジュール内mod_regexp.as初期化
@@ -59,7 +61,7 @@ MIZUSHIKI
 	// #addition(#include) の右側は「%c exist %1」とか繋げても一切反応しないから hsptmp を読みに行く。(命令が成立すると右側が無視される) 
 	// ただし、VSCode等の外部エディタではhsptmpが作られないのでaxファイルからファイル名読み出しを試みる。(外部モジュール内で__file__を使ってもそのモジュールのファイル名しか出せない)
 	dupptr hsp3exeCommandLine, GetCommandLine(), 1024, 2
-	if strmid(hsp3exeCommandLine,-1,3) == "obj"{
+	if match(hsp3exeCommandLine,"obj\"?$") != ""{
 		hsptmpFile = "hsptmp"
 	}else{
 		hsptmpFile = ""
@@ -145,7 +147,7 @@ MIZUSHIKI
 		includeResult.cnt.0 = "0"  ; ダウンロードしないフラグを立てておく
 		downloadFolder = ""  ; 初期値はカレントフォルダ
 		if (instr(includeResult.cnt.4, 0, "g") != -1) || (instr(includeResult.cnt.4, 0, "G") != -1) : downloadFolder = dir_exe+"\\common\\"
-		exist downloadFolder + includeResult.cnt.1 + includeResult.cnt.2 + includeResult.cnt.3  ; ファイルの存在を確認。ダウンロード済みなら何もしない
+		exist downloadFolder + MyReplaceFullQuestion(includeResult.cnt.1 + includeResult.cnt.2 + includeResult.cnt.3, "？")  ; ファイルの存在を確認。ダウンロード済みなら何もしない (文字コードが処理環境と違っても「？」を置換して現環境に合わせている)
 		if strsize == -1 {  ; includeResult.cnt.0=ダウンロードフラグ / numCommon, numCurrent ;カウント
 			includeResult.cnt.0 = ""  ; "0"を消してダウンロードするフラグにする
 			// common,currentが入り乱れててもそれぞれ塊に出来るようにincludeResult.cnt.4に識別番号を入れている
@@ -163,7 +165,44 @@ MIZUSHIKI
 			}
 		}
 	loop
-	if numCurrent + numCommon {  ; common,currentのどちらかにダウンロードする
+	if numCurrent + numCommon {  ; common,currentのどちらかにダウンロードする 【確定: netinclude処理】
+		if hspstat & $20000 {
+			// 処理確定したことで、重い処理も受け付ける。具体的には以下。
+			// - netinclude に ？指定や正規表現指定などがあり、UTF-8環境(HSP3.8想定)で、もしSJISスクリプトファイルを読み込んでいたときUTF8で読み込みなおしたい -> netinclude調査をやりなおす
+			cnv_hsptmpBuf = "" : cnvType = ""
+			nkfcnv cnv_hsptmpBuf, hsptmpBuf, "w", , strlen(hsptmpBuf)*2
+			nkfguess cnvType
+			if cnvType == "Shift_JIS" {
+				hsptmpBuf = cnv_hsptmpBuf
+				// netinclude【内容繰り返し】
+				matches includeResult, hsptmpBuf, "#netinclude\\s*\"(net/|https?)?(.+?)(!/.+?)?\"\\s*/\\s*,?\\s*(\\w*)(?:\n)?\\s*;*/*(?:\\s*,\\s*\"(.*?)\")?(?:\\s*,\\s*\"(.*?)\")?"
+				numIncludeResult = stat
+				// 以下、includeResult 内の配列もフラグとして活用する
+				repeat numIncludeResult
+					includeResult.cnt.0 = "0"  ; ダウンロードしないフラグを立てておく
+					downloadFolder = ""  ; 初期値はカレントフォルダ
+					if (instr(includeResult.cnt.4, 0, "g") != -1) || (instr(includeResult.cnt.4, 0, "G") != -1) : downloadFolder = dir_exe+"\\common\\"
+					exist downloadFolder + includeResult.cnt.1 + includeResult.cnt.2 + includeResult.cnt.3  ; ファイルの存在を確認。ダウンロード済みなら何もしない
+					if strsize == -1 {  ; includeResult.cnt.0=ダウンロードフラグ / numCommon, numCurrent ;カウント
+						includeResult.cnt.0 = ""  ; "0"を消してダウンロードするフラグにする
+						// common,currentが入り乱れててもそれぞれ塊に出来るようにincludeResult.cnt.4に識別番号を入れている
+						if downloadFolder == "" {
+							includeResult.cnt.4 = "1"
+							; numCurrent++  ; currentにダウンロードする数
+						}else {
+							includeResult.cnt.4 = "2"
+							; numCommon++  ; commonにダウンロードする数
+						}
+						; if netinited == 0 {
+						; 	netinited = 1
+						; 	netinit  ; ここでhspinetの初期化をしてしまう
+						; 	if stat != 0 : dialog "ネット接続できませんでした", 1, "#netinclude" : end
+						; }
+					}
+				loop
+				// --netinclude【内容繰り返し】
+			}
+		}
 		modulesCurrent = ""
 		modulesCommon = ""
 		falesComment = ""
@@ -313,7 +352,7 @@ MIZUSHIKI
 					if stat == 0 { mkdir dirs.cnt }  ; フォルダが存在しないなら作る
 					chdir dirs.cnt  ; カレントディレクトリを1階層深くに移動
 				loop
-				url = replace(replace(httpsUrl + uselibResult.cnt.0, "#.*$", ""), "？", "?")  ; ～.dllのurl。zip混みの場合は～.zipまで
+				url = MyReplaceFullQuestion(replace(httpsUrl + uselibResult.cnt.0, "#.*$", ""), "?")  ; ～.dllのurl。zip混みの場合は～.zipまで
 				if uselibResult.cnt.3 == "" {
 					// 通常のdllファイル (http等の階層をフォルダに落とし込んで一旦そこに保存)
 					neturl url  ; ダウンロード
@@ -399,8 +438,8 @@ MIZUSHIKI
 					if stat == 0 { mkdir dirs.cnt }  ; フォルダが存在しないなら作る
 					chdir dirs.cnt  ; カレントディレクトリを1階層深くに移動
 				loop
-
-				url = replace(replace(httpsUrl + includeResult.cnt.0, "#.*$", ""), "？", "?")  ; ～.dllのurl。zip混みの場合は～.zipまで
+				test = replace(httpsUrl + includeResult.cnt.0, "#.*$", "")
+				url = MyReplaceFullQuestion(replace(httpsUrl + includeResult.cnt.0, "#.*$", ""), "?")  ; ～.dllのurl。zip混みの場合は～.zipまで
 				if includeResult.cnt.3 == "" {
 					// 通常のhspファイル (http等の階層をフォルダに落とし込んで一旦そこに保存)
 					neturl url  ; ダウンロード
@@ -417,20 +456,40 @@ MIZUSHIKI
 					}else {
 						netgetv buf  ; 受信データ
 						if includeResult.cnt.6 != ""{
-							nkfcnv buf, buf, includeResult.cnt.6, , stat*2  ; NKF変換/HTMLデコード オプションがあれば変換する [予防のため最大バッファを受信サイズの倍にしておく]
+							nkfBufSize = stat*2
+							// SJISしか対象にしてなかったため、nkfオプション"s" SJIS指定があると思われる。UTF8環境なら"w" UTF8指定にしてしまう。
+							if hspstat & $20000 {
+								nkfOption = replace(includeResult.cnt.6,"s","w",1)
+							}else {
+								nkfOption = replace(includeResult.cnt.6,"w","s",1)
+							}
+							nkfcnv buf, buf, nkfOption, , nkfBufSize  ; NKF変換/HTMLデコード オプションがあれば変換する [予防のため最大バッファを受信サイズの倍にしておく]
+						}
+						nkfOption = "c"
+						if match(includeResult.cnt.6,"[wsEWS]",1) != "" {
+							if hspstat & $20000 {
+								nkfOption += "w"  ; CRLF改行オプションとUTF8指定
+							}else {
+								nkfOption += "s"  ; CRLF改行オプションとSJIS指定
+							}
 						}
 						matches dummy, buf, "\\n"  ; (LFかもしれない)改行の数を取得 [変換後のサイズを計算するため]
-						nkfcnv buf, buf, "Lw", , strlen(buf) + stat  ; 改行コードLFをCR+LFに変換する
+						nkfcnv buf, buf, nkfOption, , strlen(buf) + stat  ; 改行コードLFをCR+LFに変換する
 						if includeResult.cnt.5 != "" {
 							buf = submatch(buf, includeResult.cnt.5, , 1)  ; ネットのページの一部からモジュールを切り出したいときの正規表現
 						}
 						hspName = getpath(includeResult.cnt.0, 8)
-						notesel buf
-						notesave hspName
-						noteunsel
+						bsave hspName, buf, strlen(buf)
 						if instr(includeResult.cnt.6, 0, "D") != -1 { ;どうしてもHTMLエンティティをデコードしたかったのでD隠しコマンドでpowershellを利用してHTMLデコード。ついでに<br>も改行化
 							hspPath = dir_cur + "/" + hspName
-							exec "powershell \"Add-Type -AssemblyName System.Web;$s=Get-Content '" + hspPath + "' -Raw;$t=$s.Replace('<br>',\\\"`r`n\\\") -replace ‘<(\\\"[^\\\"]*\\\"|''[^'']*''|[^''\\\">])*>’,'';$d=[System.Web.HttpUtility]::HtmlDecode($t);Set-Content -Path '" + hspPath + "' $d;\"", 2
+							if hspstat & $20000 {
+								powershell_input = "$s=Get-Content '"+ hspPath +"' -Raw -Encoding UTF8"
+								powershell_output = "$enc=New-Object System.Text.UTF8Encoding($false);[System.IO.File]::WriteAllText('"+ hspPath +"',$d,$enc)"
+							}else {
+								powershell_input = "$s=Get-Content '"+ hspPath +"' -Raw -Encoding Default"
+								powershell_output = "Set-Content -Path '" + hspPath + "' -Encoding Default $d"
+							}
+							exec "powershell \"Add-Type -AssemblyName System.Web;"+ powershell_input +";$t=$s.Replace('<br>',\\\"`r`n\\\") -replace ‘<(\\\"[^\\\"]*\\\"|''[^'']*''|[^''\\\">])*>’,'';$d=[System.Web.HttpUtility]::HtmlDecode($t);"+ powershell_output +";\"", 2
 						}
 					}
 				}else {
@@ -463,6 +522,7 @@ MIZUSHIKI
 		}
 	}
 	sdim hsptmpBuf  ; メモリ解放
+	_endregexp
 	return
 
 // (ローカル命令)ファイルダウンロード
@@ -714,7 +774,7 @@ MIZUSHIKI
 oReg=0
 oMatches=0
 #deffunc local _endregexp onexit
-	if vartype(oReg) == 6 : delcom oReg
+	if vartype(oReg) == 6 : delcom oReg : oReg=0
 	return
 #deffunc local _startregexp
 	newcom oReg,"VBScript.RegExp"
@@ -797,10 +857,50 @@ oMatches=0
 	oReg->"Replace" target,repstr
 	if stat<0:return target
 	return retstr
+// sjis, utf8 両対応の全角？を指定文字に置換
+#defcfunc local MyReplaceFullQuestion str _src, str _ques
+	src = _src : ques = _ques
+	sdim dst, strlen(src) + 1
+	s = 0 : d = 0
+	repeat
+		c = peek(src, s)
+		if c == 0 : break
+		if c == $81 {
+			if peek(src, s+1) == $48 {  ; SJIS "？" (81 48)
+				repeat strlen(ques)
+					poke dst, d, peek(ques, cnt) : d++
+				loop
+				s += 2
+				continue
+			}
+		}
+		if c == $EF {
+			if peek(src, s+1) == $BC & peek(src, s+2) == $9F {  ; UTF-8 "？" (EF BC 9F)
+				repeat strlen(ques)
+					poke dst, d, peek(ques, cnt) : d++
+				loop
+				s += 3
+				continue
+			}
+			if peek(src, s+1) == $BF & peek(src, s+2) == $BD {
+				if s+3 < strlen(src) {
+					if peek(src, s+3) == $48 {  ; UTF-8 置換文字 (EF BF BD) と SJIS版の末尾 48
+						repeat strlen(ques)
+							poke dst, d, peek(ques, cnt) : d++
+						loop
+						s += 4
+						continue
+					}
+				}
+			}
+		}
+		poke dst, d, c  ; そのままコピー
+		s++ : d++
+	loop
+	poke dst, d, 0
+    return dst
 #global
-	if dir_exe != "" {  ; HSP3Dish.jsのデバッグ実行を考慮
-		execute@mod_netinclude
-	}
+	execute@mod_netinclude
 
 #else  ; ifdef _debug
 
